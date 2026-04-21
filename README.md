@@ -18,6 +18,12 @@ I then come up with an idea of self host a site to display all of my pics, where
 
 I didn't mean to copy and host a database like jetphoto does, this would be purely a gallery for self-satisfaction, sounds a bit weird but it is.
 
+## A special feature
+
+One of the factors helps with the planning of a spotting is what's new getting inbound, that is to say, if there's no new liveries or special aircrafts coming in, probably just stay at home.
+
+It can be a hugh pain to scroll the list of arrivals and departures on FR24, which is probably the main tool used for spotters I reckon, as they don't provide much useful filters to quickly retieve what would be attractive. So a prediction feature was added to provide with a filtered list of flights arriving/departuring from the desired ariport as a reference for the planning.
+
 ## Demo
 
 ## Deployment
