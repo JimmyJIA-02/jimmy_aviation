@@ -5,11 +5,11 @@ import lombok.Data;
 
 @Data
 @Entity
-@Table(name = "airport")
+@Table(name = "airports")
 public class Airport {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Integer id;
 
     @Column(name = "iata_code", nullable = false)
     private String iataCode;

@@ -9,7 +9,7 @@ import lombok.Data;
 public class Flight {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Integer id;
 
     @Column(name = "flight_number", nullable = false)
     private String flightNumber;

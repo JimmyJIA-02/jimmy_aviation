@@ -1,6 +1,6 @@
 package com.jimmyaviation.website.entity;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 import jakarta.persistence.*;
 import lombok.Data;
@@ -11,7 +11,7 @@ import lombok.Data;
 public class Spotting {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Integer id;
 
     @Column(nullable = false)
     private String registration;
@@ -19,13 +19,13 @@ public class Spotting {
     @Column(name = "photo_url", nullable = false)
     private String photoUrl;
 
-    @Column(name = "thumbnail_url", nullable = false)
+    @Column(name = "thumbnail_url")
     private String thumbnailUrl;
 
     @Column(name = "spot_date", nullable = false)
-    private LocalDateTime spotDate;
+    private LocalDate spotDate;
 
-    @Column(nullable = false)
+    // @Column(nullable = false)
     private String notes;
 
     @ManyToOne
