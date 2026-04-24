@@ -3,3 +3,6 @@ spring:
     url: jdbc:postgresql://localhost:5432/aviation
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: 86400000 
