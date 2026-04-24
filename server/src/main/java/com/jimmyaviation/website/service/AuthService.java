@@ -27,12 +27,4 @@ public class AuthService {
 
         return jwtUtil.generateToken(admin.getUsername());
     }
-
-    // TODO: Add method to create admin users (for testing purposes, should be removed in production)
-    public AdminUser createAdmin(String username, String password) {
-        AdminUser user = new AdminUser();
-        user.setUsername(username);
-        user.setPasswordHash(passwordEncoder.encode(password));
-        return adminUserRepository.save(user);
-    }
 }

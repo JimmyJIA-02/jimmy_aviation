@@ -26,14 +26,4 @@ public class AuthController {
             return ResponseEntity.status(401).body(Map.of("error", "Invalid credentials"));
         }
     }
-
-    // TODO: Remove this endpoint after initial setup
-    @PostMapping("/setup")
-    public ResponseEntity<Map<String, String>> createAdmin(@RequestBody Map<String, String> request) {
-        String username = request.get("username");
-        String password = request.get("password");
-
-        authService.createAdmin(username, password);
-        return ResponseEntity.ok(Map.of("message", "Admin created"));
-    }
 }
