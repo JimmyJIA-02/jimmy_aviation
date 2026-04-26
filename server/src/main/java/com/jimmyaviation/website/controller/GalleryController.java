@@ -8,7 +8,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+
 
 @RestController
 @RequestMapping("/api")
@@ -70,4 +74,13 @@ public class GalleryController {
     public ResponseEntity<List<Airport>> getAllAirports() {
         return ResponseEntity.ok(galleryService.getAllAirports());
     }
+
+    // like a spotting
+    @PostMapping("/spotting/{id}/like")
+    public ResponseEntity<Map<String, String>> likeSpotting(@PathVariable UUID id) {
+        galleryService.likeSpotting(id);
+
+        return ResponseEntity.ok(Map.of("message", "Spotting liked"));
+    }
+    
 }

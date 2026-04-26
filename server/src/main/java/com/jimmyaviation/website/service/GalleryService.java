@@ -4,6 +4,7 @@ import com.jimmyaviation.website.entity.*;
 import com.jimmyaviation.website.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -48,5 +49,11 @@ public class GalleryService {
 
     public List<Airport> getAllAirports() {
         return airportRepository.findAll();
+    }
+
+    // thread safety *
+    @Transactional
+    public void likeSpotting(UUID spottingId) {
+        spottingRepository.incrementLikes(spottingId);
     }
 }
