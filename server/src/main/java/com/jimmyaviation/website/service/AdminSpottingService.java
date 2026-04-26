@@ -19,6 +19,8 @@ public class AdminSpottingService {
     private final AirportRepository airportRepository;
     private final FlightRepository flightRepository;
 
+    private final PhotoService photoService;
+
     public Spotting createSpotting(
             String registration,
             String photoUrl,
@@ -35,11 +37,11 @@ public class AdminSpottingService {
             String spotLocationIata,
             String spotLocationName,
             String spotLocationCity,
-            String spotLocationCountry
-    ) {
+            String spotLocationCountry) {
         Aircraft aircraft = findOrCreateAircraft(aircraftIcao, aircraftTypeName);
         Airline airline = findOrCreateAirline(airlineIcao, airlineName);
-        Airport spotLocation = findOrCreateAirport(spotLocationIata, spotLocationName, spotLocationCity, spotLocationCountry);
+        Airport spotLocation = findOrCreateAirport(spotLocationIata, spotLocationName, spotLocationCity,
+                spotLocationCountry);
         Flight flight = findOrCreateFlight(flightNumber, departureCity, arrivalCity);
 
         Spotting spotting = new Spotting();
@@ -66,6 +68,12 @@ public class AdminSpottingService {
     }
 
     public void deleteById(Integer id) {
+        // delete the photo from S3
+        Spotting spotting = spottingRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Spotting not found"));
+        String url = spotting.getPhotoUrl();
+        photoService.deletePhoto(url);
+        // delete the spotting record
         spottingRepository.deleteById(id);
     }
 
@@ -113,52 +121,48 @@ public class AdminSpottingService {
     }
 
     public Spotting patchSpotting(Integer id, Map<String, String> updates) {
-    Spotting spotting = spottingRepository.findById(id)
-            .orElseThrow(() -> new RuntimeException("Spotting not found"));
+        Spotting spotting = spottingRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Spotting not found"));
 
-    if (updates.containsKey("registration")) {
-        spotting.setRegistration(updates.get("registration"));
-    }
-    if (updates.containsKey("photoUrl")) {
-        spotting.setPhotoUrl(updates.get("photoUrl"));
-    }
-    if (updates.containsKey("thumbnailUrl")) {
-        spotting.setThumbnailUrl(updates.get("thumbnailUrl"));
-    }
-    if (updates.containsKey("spotDate")) {
-        spotting.setSpotDate(LocalDate.parse(updates.get("spotDate")));
-    }
-    if (updates.containsKey("notes")) {
-        spotting.setNotes(updates.get("notes"));
-    }
-    if (updates.containsKey("airlineIcao")) {
-        spotting.setAirline(findOrCreateAirline(
-                updates.get("airlineIcao"),
-                updates.get("airlineName")
-        ));
-    }
-    if (updates.containsKey("aircraftIcao")) {
-        spotting.setAircraft(findOrCreateAircraft(
-                updates.get("aircraftIcao"),
-                updates.get("aircraftTypeName")
-        ));
-    }
-    if (updates.containsKey("spotLocationIata")) {
-        spotting.setSpotLocation(findOrCreateAirport(
-                updates.get("spotLocationIata"),
-                updates.get("spotLocationName"),
-                updates.get("spotLocationCity"),
-                updates.get("spotLocationCountry")
-        ));
-    }
-    if (updates.containsKey("flightNumber")) {
-        spotting.setFlight(findOrCreateFlight(
-            updates.get("flightNumber"), 
-            updates.get("departureCity"), 
-            updates.get("arrivalCity")
-        ));
-    }
+        if (updates.containsKey("registration")) {
+            spotting.setRegistration(updates.get("registration"));
+        }
+        if (updates.containsKey("photoUrl")) {
+            spotting.setPhotoUrl(updates.get("photoUrl"));
+        }
+        if (updates.containsKey("thumbnailUrl")) {
+            spotting.setThumbnailUrl(updates.get("thumbnailUrl"));
+        }
+        if (updates.containsKey("spotDate")) {
+            spotting.setSpotDate(LocalDate.parse(updates.get("spotDate")));
+        }
+        if (updates.containsKey("notes")) {
+            spotting.setNotes(updates.get("notes"));
+        }
+        if (updates.containsKey("airlineIcao")) {
+            spotting.setAirline(findOrCreateAirline(
+                    updates.get("airlineIcao"),
+                    updates.get("airlineName")));
+        }
+        if (updates.containsKey("aircraftIcao")) {
+            spotting.setAircraft(findOrCreateAircraft(
+                    updates.get("aircraftIcao"),
+                    updates.get("aircraftTypeName")));
+        }
+        if (updates.containsKey("spotLocationIata")) {
+            spotting.setSpotLocation(findOrCreateAirport(
+                    updates.get("spotLocationIata"),
+                    updates.get("spotLocationName"),
+                    updates.get("spotLocationCity"),
+                    updates.get("spotLocationCountry")));
+        }
+        if (updates.containsKey("flightNumber")) {
+            spotting.setFlight(findOrCreateFlight(
+                    updates.get("flightNumber"),
+                    updates.get("departureCity"),
+                    updates.get("arrivalCity")));
+        }
 
-    return spottingRepository.save(spotting);
-}
+        return spottingRepository.save(spotting);
+    }
 }
