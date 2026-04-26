@@ -29,6 +29,9 @@ public class Spotting {
     // @Column(nullable = false)
     private String notes;
 
+    @Column(nullable = false)
+    private Integer likes = 0;
+
     @ManyToOne
     @JoinColumn(name = "flight_id", nullable = false)
     private Flight flight;
