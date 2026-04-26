@@ -39,6 +39,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/airports/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/flights/**").permitAll()
                 .requestMatchers("/api/admin/**").authenticated()
+                .requestMatchers(HttpMethod.GET, "/api/photos/**").permitAll()
                 .anyRequest().permitAll()
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
