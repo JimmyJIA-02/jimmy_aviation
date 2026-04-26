@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -62,12 +63,12 @@ public class AdminSpottingService {
         return spottingRepository.findAll();
     }
 
-    public Spotting findById(Integer id) {
+    public Spotting findById(UUID id) {
         return spottingRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Spotting not found"));
     }
 
-    public void deleteById(Integer id) {
+    public void deleteById(UUID id) {
         // delete the photo from S3
         Spotting spotting = spottingRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Spotting not found"));
@@ -120,7 +121,7 @@ public class AdminSpottingService {
                 });
     }
 
-    public Spotting patchSpotting(Integer id, Map<String, String> updates) {
+    public Spotting patchSpotting(UUID id, Map<String, String> updates) {
         Spotting spotting = spottingRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Spotting not found"));
 

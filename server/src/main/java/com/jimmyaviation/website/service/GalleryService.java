@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -21,19 +22,19 @@ public class GalleryService {
         return spottingRepository.findAll();
     }
 
-    public Optional<Spotting> getSpottingById(Integer id) {
+    public Optional<Spotting> getSpottingById(UUID id) {
         return spottingRepository.findById(id);
     }
 
-    public List<Spotting> getByAirline(Integer airlineId) {
+    public List<Spotting> getByAirline(UUID airlineId) {
         return spottingRepository.findByAirlineId(airlineId);
     }
 
-    public List<Spotting> getByAircraft(Integer aircraftId) {
+    public List<Spotting> getByAircraft(UUID aircraftId) {
         return spottingRepository.findByAircraftId(aircraftId);
     }
 
-    public List<Spotting> getByAirport(Integer airportId) {
+    public List<Spotting> getByAirport(UUID airportId) {
         return spottingRepository.findBySpotLocation(airportId);
     }
 

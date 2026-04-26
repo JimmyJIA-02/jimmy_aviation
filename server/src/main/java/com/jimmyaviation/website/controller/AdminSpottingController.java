@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -32,7 +33,7 @@ public class AdminSpottingController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Spotting> getSpottingById(@PathVariable Integer id) {
+    public ResponseEntity<Spotting> getSpottingById(@PathVariable UUID id) {
         try {
             return ResponseEntity.ok(adminSpottingService.findById(id));
         } catch (Exception e) {
@@ -63,14 +64,14 @@ public class AdminSpottingController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Map<String, String>> deleteSpotting(@PathVariable Integer id) {
+    public ResponseEntity<Map<String, String>> deleteSpotting(@PathVariable UUID id) {
         adminSpottingService.deleteById(id);
         return ResponseEntity.ok(Map.of("message", "Spotting deleted"));
     }
 
     @PatchMapping("/{id}")
     public ResponseEntity<Spotting> patchSpotting(
-            @PathVariable Integer id,
+            @PathVariable UUID id,
             @RequestBody Map<String, String> updates) {
         return ResponseEntity.ok(adminSpottingService.patchSpotting(id, updates));
     }

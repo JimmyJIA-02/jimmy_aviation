@@ -1,5 +1,7 @@
 package com.jimmyaviation.website.entity;
 
+import java.util.UUID;
+
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -8,8 +10,8 @@ import lombok.Data;
 @Table(name = "flights")
 public class Flight {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
     @Column(name = "flight_number", nullable = false)
     private String flightNumber;

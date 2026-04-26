@@ -1,6 +1,7 @@
 package com.jimmyaviation.website.entity;
 
 import java.time.LocalDate;
+import java.util.UUID;
 
 import jakarta.persistence.*;
 import lombok.Data;
@@ -10,8 +11,8 @@ import lombok.Data;
 @Table(name = "spottings")
 public class Spotting {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
     @Column(nullable = false)
     private String registration;
