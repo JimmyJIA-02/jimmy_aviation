@@ -15,3 +15,7 @@ aws:
   credentials:
     access-key: ${AWS_ACCESS_KEY}
     secret-key: ${AWS_SECRET_KEY}
+
+adb:
+  host: https://aerodatabox.p.rapidapi.com
+  token: ${ADB_TOKEN}
