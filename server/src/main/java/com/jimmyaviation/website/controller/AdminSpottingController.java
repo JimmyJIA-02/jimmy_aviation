@@ -1,10 +1,13 @@
 package com.jimmyaviation.website.controller;
 
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.jimmyaviation.website.dto.PlannerFlight;
 import com.jimmyaviation.website.entity.Spotting;
 import com.jimmyaviation.website.service.AdminSpottingService;
+import com.jimmyaviation.website.service.SpottingPlannerService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -26,6 +29,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 @RequiredArgsConstructor
 public class AdminSpottingController {
     private final AdminSpottingService adminSpottingService;
+    private final SpottingPlannerService spottingPlannerService;
 
     @GetMapping
     public ResponseEntity<List<Spotting>> getAllSpottings() {
@@ -74,5 +78,23 @@ public class AdminSpottingController {
             @PathVariable UUID id,
             @RequestBody Map<String, String> updates) {
         return ResponseEntity.ok(adminSpottingService.patchSpotting(id, updates));
+    }
+
+    @GetMapping("/planner")
+    public ResponseEntity<Map<String, Object>> getPlannerFlights(
+        @RequestParam String airport,
+        @RequestParam int offsetMinutes,
+        @RequestParam int durationMinutes,
+        @RequestParam boolean withCargo,
+        @RequestParam boolean withPrivate
+    ) {
+        Map<String, List<PlannerFlight>> flights = spottingPlannerService.getArrivals(airport, offsetMinutes, durationMinutes, withCargo, withPrivate);
+        return ResponseEntity.ok(Map.of(
+            "airport", airport,
+            "total arrivals", flights.get("arrivals").size(),
+            "total departures", flights.get("departures").size(),
+            "arrivals", flights.get("arrivals"),
+            "departures", flights.get("departures")
+        ));
     }
 }
