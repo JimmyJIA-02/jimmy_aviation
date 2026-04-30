@@ -24,6 +24,9 @@ One of the factors helps with the planning of a spotting is what's new getting i
 
 It can be a hugh pain to scroll the list of arrivals and departures on FR24, which is probably the main tool used for spotters I reckon, as they don't provide much useful filters to quickly retieve what would be attractive. Thanks to AeroDataBox, this feature is available based on their api. However, considering that the livery information is not a standard information being included in these aviation-informative data provider, it still needs manual reference.
 
+<p align="center">
+<img width="512" height="512" alt="logo_512" src="https://github.com/user-attachments/assets/293a21bd-152b-4f33-95b1-b4d46fc041c9" />
+</p>
 
 ## Deployment
 
