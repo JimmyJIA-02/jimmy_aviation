@@ -202,8 +202,8 @@ export default function SpottingForm() {
             <Field label="Flight Number" name="flightNumber" value={form.flightNumber} onChange={handleChange} placeholder="QF94" />
           </FieldRow>
           <FieldRow>
-            <Field label="Departure" name="departureCity" value={form.departureCity} onChange={handleChange} placeholder="Aircraft Departure City" />
-            <Field label="Arrival" name="arrivalCity" value={form.arrivalCity} onChange={handleChange} placeholder="Aircraft Arrival City" />
+            <Field label="Departure" name="departureCity" value={form.departureCity} onChange={handleChange} placeholder="Aircraft Departure City (10 max)" />
+            <Field label="Arrival" name="arrivalCity" value={form.arrivalCity} onChange={handleChange} placeholder="Aircraft Arrival City (10 max)" />
           </FieldRow>
         </FieldSection>
 

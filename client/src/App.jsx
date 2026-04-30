@@ -6,6 +6,8 @@ import Dashboard from './pages/Dashboard';
 import SpottingForm from './pages/SpottingForm';
 import Planner from './pages/Planner';
 import Statistics from './pages/Statistics';
+import Gallery from './pages/Gallery';
+import SpottingDetail from './pages/SpottingDetail';
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth();
@@ -15,6 +17,8 @@ function ProtectedRoute({ children }) {
 function AppRoutes() {
   return (
     <Routes>
+      <Route path="/" element={<Gallery />} />
+      <Route path="/spotting/:id" element={<SpottingDetail />} />
       <Route path="/login" element={<Login />} />
       <Route path="/admin" element={
         <ProtectedRoute><AdminLayout /></ProtectedRoute>
@@ -25,7 +29,7 @@ function AppRoutes() {
         <Route path="statistics" element={<Statistics />} />
         <Route path="edit/:id" element={<SpottingForm />} />
       </Route>
-      <Route path="*" element={<Navigate to="/login" />} />
+      <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   );
 }
