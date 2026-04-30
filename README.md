@@ -22,9 +22,8 @@ I didn't mean to copy and host a database like jetphoto does, this would be pure
 
 One of the factors helps with the planning of a spotting is what's new getting inbound, that is to say, if there's no new liveries or special aircrafts coming in, probably just stay at home.
 
-It can be a hugh pain to scroll the list of arrivals and departures on FR24, which is probably the main tool used for spotters I reckon, as they don't provide much useful filters to quickly retieve what would be attractive. So a prediction feature was added to provide with a filtered list of flights arriving/departuring from the desired ariport as a reference for the planning.
+It can be a hugh pain to scroll the list of arrivals and departures on FR24, which is probably the main tool used for spotters I reckon, as they don't provide much useful filters to quickly retieve what would be attractive. Thanks to AeroDataBox, this feature is available based on their api. However, considering that the livery information is not a standard information being included in these aviation-informative data provider, it still needs manual reference.
 
-## Demo
 
 ## Deployment
 
