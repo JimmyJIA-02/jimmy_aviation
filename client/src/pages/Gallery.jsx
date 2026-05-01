@@ -27,6 +27,9 @@ export default function Gallery() {
     const [calendarCollapsed, setCalendarCollapsed] = useState(false);
     const [likedIds, setLikedIds] = useState(new Set());
     const filterRef = useRef(null);
+    const [page, setPage] = useState(0);
+    const [hasMore, setHasMore] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
 
     useEffect(() => {
         const handleClickOutside = (e) => {
@@ -44,12 +47,29 @@ export default function Gallery() {
 
     const fetchData = async () => {
         try {
-            const spottingsRes = await api.get('/spotting');
-            setSpottings(spottingsRes.data);
+            const res = await api.get('/spotting', { params: { page: 0, size: 12 } });
+            setSpottings(res.data.content);
+            setHasMore(res.data.hasMore);
+            setPage(0);
         } catch (err) {
             console.error('Failed to fetch', err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const loadMore = async () => {
+        setLoadingMore(true);
+        try {
+            const nextPage = page + 1;
+            const res = await api.get('/spotting', { params: { page: nextPage, size: 12 } });
+            setSpottings(prev => [...prev, ...res.data.content]);
+            setHasMore(res.data.hasMore);
+            setPage(nextPage);
+        } catch (err) {
+            console.error('Failed to load more', err);
+        } finally {
+            setLoadingMore(false);
         }
     };
 
@@ -583,6 +603,30 @@ export default function Gallery() {
                     </div>
                 )}
             </div>
+
+            {hasMore && !loading && (
+                <div style={{ textAlign: 'center', marginTop: '32px' }}>
+                    <button
+                        onClick={loadMore}
+                        disabled={loadingMore}
+                        style={{
+                            padding: '12px 32px',
+                            background: '#1a1a2e',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: '24px',
+                            fontSize: '14px',
+                            fontWeight: 600,
+                            cursor: loadingMore ? 'wait' : 'pointer',
+                            opacity: loadingMore ? 0.7 : 1,
+                            transition: 'opacity 0.2s',
+                            fontFamily: "'DM Sans', sans-serif",
+                        }}
+                    >
+                        {loadingMore ? 'Loading...' : 'Load More'}
+                    </button>
+                </div>
+            )}
         </div>
     );
 }

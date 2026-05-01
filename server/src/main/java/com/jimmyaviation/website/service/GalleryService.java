@@ -3,6 +3,10 @@ package com.jimmyaviation.website.service;
 import com.jimmyaviation.website.entity.*;
 import com.jimmyaviation.website.repository.*;
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -55,5 +59,10 @@ public class GalleryService {
     @Transactional
     public void likeSpotting(UUID spottingId) {
         spottingRepository.incrementLikes(spottingId);
+    }
+
+    public Page<Spotting> getAllSpottings(int page, int size) {
+        return spottingRepository.findAll(
+                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "spotDate")));
     }
 }

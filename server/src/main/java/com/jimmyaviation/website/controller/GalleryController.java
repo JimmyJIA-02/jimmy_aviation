@@ -4,15 +4,14 @@ import com.jimmyaviation.website.entity.*;
 import com.jimmyaviation.website.service.GalleryService;
 
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-
 
 @RestController
 @RequestMapping("/api")
@@ -22,8 +21,15 @@ public class GalleryController {
     private final GalleryService galleryService;
 
     @GetMapping("/spotting")
-    public ResponseEntity<List<Spotting>> getAllSpottings() {
-        return ResponseEntity.ok(galleryService.getAllSpottings());
+    public ResponseEntity<Map<String, Object>> getAllSpottings(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "12") int size) {
+        Page<Spotting> spottingPage = galleryService.getAllSpottings(page, size);
+        return ResponseEntity.ok(Map.of(
+                "content", spottingPage.getContent(),
+                "totalPages", spottingPage.getTotalPages(),
+                "totalElements", spottingPage.getTotalElements(),
+                "hasMore", spottingPage.hasNext()));
     }
 
     // Get a specific spotting by ID, maybe used for a detailed view page
@@ -55,7 +61,6 @@ public class GalleryController {
 
     // by time (months, years)
 
-    
     // Overview
     // get all airlines
     @GetMapping("/airline")
@@ -82,5 +87,5 @@ public class GalleryController {
 
         return ResponseEntity.ok(Map.of("message", "Spotting liked"));
     }
-    
+
 }
