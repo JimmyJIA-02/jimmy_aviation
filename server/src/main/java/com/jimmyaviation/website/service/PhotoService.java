@@ -30,11 +30,12 @@ public class PhotoService {
             @Value("${aws.credentials.secret-key}") String secretKey) {
         this.bucketName = bucketName;
         this.s3Client = S3Client.builder()
-                .region(Region.of(region))
-                .credentialsProvider(StaticCredentialsProvider.create(
-                        AwsBasicCredentials.create(accessKey, secretKey)
-                ))
-                .build();
+            .region(Region.of(region))
+            .endpointOverride(java.net.URI.create("https://s3.ap-southeast-2.amazonaws.com"))
+            .credentialsProvider(StaticCredentialsProvider.create(
+                AwsBasicCredentials.create(accessKey, secretKey)
+        ))
+        .build();
     }
 
     public String uploadPhoto(MultipartFile file) {
