@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import ExifReader from 'exifreader';
 import api from '../api/axios';
 
 const COUNTRY_ALIASES = {
@@ -91,11 +92,50 @@ export default function SpottingForm() {
     }
   };
 
-  const handlePhotoChange = (e) => {
+  const handlePhotoChange = async (e) => {
     const file = e.target.files[0];
-    if (file) {
-      setPhoto(file);
-      setPhotoPreview(URL.createObjectURL(file));
+    if (!file) return;
+
+    setPhoto(file);
+    setPhotoPreview(URL.createObjectURL(file));
+
+    try {
+      const tags = await ExifReader.load(file);
+
+      // Extract date
+      if (tags['DateTimeOriginal']) {
+        const raw = tags['DateTimeOriginal'].description;
+        const formatted = raw.split(' ')[0].replace(/:/g, '-');
+        setForm(prev => ({ ...prev, spotDate: formatted }));
+      }
+
+      // Build camera note
+      const parts = [];
+
+      const camera = tags['Model']?.description;
+      if (camera) parts.push(`Shot on ${camera.trim()}`);
+
+      const lens = tags['LensModel']?.description;
+      if (lens) parts.push(lens.trim());
+
+      const focalLength = tags['FocalLength']?.description;
+      if (focalLength) parts.push(`${focalLength}mm`);
+
+      const fNumber = tags['FNumber']?.description;
+      if (fNumber) parts.push(`f/${fNumber}`);
+
+      const exposure = tags['ExposureTime']?.description;
+      if (exposure) parts.push(`${exposure}s`);
+
+      const iso = tags['ISOSpeedRatings']?.description;
+      if (iso) parts.push(`ISO ${iso}`);
+
+      if (parts.length > 0) {
+        const note = parts.join(' · ');
+        setForm(prev => ({ ...prev, notes: note }));
+      }
+    } catch (err) {
+      console.log('No EXIF data found', err);
     }
   };
 
@@ -139,8 +179,8 @@ export default function SpottingForm() {
   return (
     <div style={{ width: '100%' }}>
       <h2 style={{ fontSize: '22px', fontWeight: 700, marginBottom: '24px', letterSpacing: '-0.3px' }}>
-          {isEditing ? 'Edit Spotting' : 'New Upload'}
-        </h2>
+        {isEditing ? 'Edit Spotting' : 'New Upload'}
+      </h2>
       <form onSubmit={handleSubmit} style={{
         background: '#fff', borderRadius: '8px', border: '1px solid #eee', padding: '32px',
       }}>
@@ -209,8 +249,8 @@ export default function SpottingForm() {
 
         <FieldSection title="Spot Location">
           <FieldRow>
-            <Field label="IATA" name="spotLocationIata" value={form.spotLocationIata} onChange={handleChange} placeholder="Spot Location Airport IATA" />
-            <Field label="Name" name="spotLocationName" value={form.spotLocationName} onChange={handleChange} placeholder="Spot Location Airport Name" />
+            <Field label="Airport IATA" name="spotLocationIata" value={form.spotLocationIata} onChange={handleChange} placeholder="Spot Location Airport IATA" />
+            <Field label="Airport Name" name="spotLocationName" value={form.spotLocationName} onChange={handleChange} placeholder="Spot Location Airport Name" />
           </FieldRow>
           <FieldRow>
             <Field label="City" name="spotLocationCity" value={form.spotLocationCity} onChange={handleChange} placeholder="Spot Location City" />

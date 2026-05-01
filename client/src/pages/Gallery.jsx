@@ -170,6 +170,9 @@ export default function Gallery() {
                             <a href="https://www.linkedin.com/in/jianing-jia" target="_blank" rel="noopener noreferrer">
                                 <img src="/linkedin.png" alt="LinkedIn" style={{ width: '28px', height: '28px', transition: 'opacity 0.2s', opacity: 0.6 }} onMouseEnter={(e) => e.currentTarget.style.opacity = 1} onMouseLeave={(e) => e.currentTarget.style.opacity = 0.6} />
                             </a>
+                            <a href="https://www.jetphotos.com/photographer/537489" target="_blank" rel="noopener noreferrer">
+                                <img src="/jp.png" alt="JetPhotos" style={{ width: '28px', height: '28px', transition: 'opacity 0.2s', opacity: 0.6 }} onMouseEnter={(e) => e.currentTarget.style.opacity = 1} onMouseLeave={(e) => e.currentTarget.style.opacity = 0.6} />
+                            </a>
                         </div>
                     </div>
                     <ReactMarkdown rehypePlugins={[rehypeRaw]}
