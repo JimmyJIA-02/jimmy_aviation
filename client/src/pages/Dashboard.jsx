@@ -15,7 +15,7 @@ export default function Dashboard() {
   const fetchSpottings = async () => {
     try {
       const res = await api.get('/spotting');
-      setSpottings(res.data);
+      setSpottings(res.data.content);
     } catch (err) {
       console.error('Failed to fetch spottings', err);
     } finally {
