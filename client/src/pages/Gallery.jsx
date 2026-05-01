@@ -285,7 +285,7 @@ export default function Gallery() {
 
                                 <div style={{
                                     display: 'grid',
-                                    gridTemplateColumns: 'repeat(4, 1fr)',
+                                    gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
                                     gap: '20px',
                                 }}>
                                     {[...yearMonths].reverse().map(({ key, month }) => {
@@ -376,7 +376,7 @@ export default function Gallery() {
                             </h3>
                             <div style={{
                                 display: 'grid',
-                                gridTemplateColumns: 'repeat(4, 1fr)',
+                                gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
                                 gap: '20px',
                             }}>
                                 {selectedSpottings.map(s => (
@@ -397,8 +397,9 @@ export default function Gallery() {
 
             {/* Controls row */}
             <div style={{
-                maxWidth: '1200px', margin: '0 auto', padding: '24px 24px 0',
+                maxWidth: '1200px', margin: '0 auto', padding: '24px 16px 0',
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                flexWrap: 'wrap', gap: '12px',
             }}>
                 {/* Filter button */}
                 <div style={{ position: 'relative' }} ref={filterRef}>
@@ -573,7 +574,7 @@ export default function Gallery() {
                 ) : (
                     <div style={{
                         display: 'grid',
-                        gridTemplateColumns: 'repeat(4, 1fr)',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
                         gap: '20px',
                     }}>
                         {filtered.map(s => (
@@ -589,9 +590,12 @@ export default function Gallery() {
 function NavBar({ activeTab, setActiveTab }) {
     return (
         <nav style={{
-            display: 'flex', justifyContent: 'center', gap: '60px',
-            padding: '24px 0',
+            display: 'flex',
+            justifyContent: 'center',
+            gap: '24px',
+            padding: '24px 16px',
             borderBottom: '1px solid #eee',
+            flexWrap: 'wrap',
         }}>
             {TABS.map(tab => (
                 <button
@@ -599,7 +603,7 @@ function NavBar({ activeTab, setActiveTab }) {
                     onClick={() => setActiveTab(tab.key)}
                     style={{
                         background: 'none', border: 'none',
-                        fontSize: '15px', fontWeight: 700,
+                        fontSize: '14px', fontWeight: 700,
                         letterSpacing: '1px',
                         color: activeTab === tab.key ? '#1a1a1a' : '#bbb',
                         cursor: 'pointer',

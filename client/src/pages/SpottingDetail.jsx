@@ -207,6 +207,8 @@ export default function SpottingDetail() {
                     display: 'flex',
                     justifyContent: 'space-between',
                     marginBottom: '16px',
+                    flexWrap: 'wrap',
+                    gap: '16px',
                 }}>
                     {/* Left column */}
                     <div>
@@ -264,9 +266,11 @@ export default function SpottingDetail() {
                     display: 'flex',
                     gap: '16px',
                     marginBottom: '32px',
+                    flexWrap: 'wrap',
                 }}>
                     <div style={{
-                        flex: 1,
+                        flex: '1 1 200px',
+                        minWidth: '200px',
                         background: '#0a0a0a',
                         borderRadius: '10px',
                         padding: '12px 16px',
@@ -277,7 +281,8 @@ export default function SpottingDetail() {
                     </div>
 
                     <div style={{
-                        flex: 1,
+                        flex: '1 1 200px',
+                        minWidth: '200px',
                         background: '#0a0a0a',
                         borderRadius: '10px',
                         padding: '12px 16px',
@@ -288,7 +293,8 @@ export default function SpottingDetail() {
                     </div>
 
                     <div style={{
-                        flex: 1,
+                        flex: '1 1 200px',
+                        minWidth: '200px',
                         background: '#0a0a0a',
                         borderRadius: '10px',
                         padding: '12px 16px',
