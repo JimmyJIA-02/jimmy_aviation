@@ -27,6 +27,7 @@ function normalizeCountry(value) {
 }
 
 export default function SpottingForm() {
+  const [dragOver, setDragOver] = useState(false);
   const { id } = useParams();
   const isEditing = !!id;
   const navigate = useNavigate();
@@ -92,47 +93,35 @@ export default function SpottingForm() {
     }
   };
 
-  const handlePhotoChange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
+  const handleFileSelect = async (file) => {
     setPhoto(file);
     setPhotoPreview(URL.createObjectURL(file));
 
     try {
       const tags = await ExifReader.load(file);
 
-      // Extract date
       if (tags['DateTimeOriginal']) {
         const raw = tags['DateTimeOriginal'].description;
         const formatted = raw.split(' ')[0].replace(/:/g, '-');
         setForm(prev => ({ ...prev, spotDate: formatted }));
       }
 
-      // Build camera note
       const parts = [];
-
       const camera = tags['Model']?.description;
       if (camera) parts.push(`Shot on ${camera.trim()}`);
-
       const lens = tags['LensModel']?.description;
       if (lens) parts.push(lens.trim());
-
       const focalLength = tags['FocalLength']?.description;
       if (focalLength) parts.push(`${focalLength}mm`);
-
       const fNumber = tags['FNumber']?.description;
       if (fNumber) parts.push(`f/${fNumber}`);
-
       const exposure = tags['ExposureTime']?.description;
       if (exposure) parts.push(`${exposure}s`);
-
       const iso = tags['ISOSpeedRatings']?.description;
       if (iso) parts.push(`ISO ${iso}`);
 
       if (parts.length > 0) {
-        const note = parts.join(' · ');
-        setForm(prev => ({ ...prev, notes: note }));
+        setForm(prev => ({ ...prev, notes: parts.join(' · ') }));
       }
     } catch (err) {
       console.log('No EXIF data found', err);
@@ -195,22 +184,49 @@ export default function SpottingForm() {
         {/* Photo upload */}
         <div style={{ marginBottom: '24px' }}>
           <label style={labelStyle}>Photo</label>
-          <div style={{
-            border: '2px dashed #ddd', borderRadius: '8px', padding: '24px',
-            textAlign: 'center', cursor: 'pointer',
-          }}
+          <div
+            style={{
+              border: dragOver ? '2px dashed #1a1a2e' : '2px dashed #ddd',
+              borderRadius: '8px',
+              padding: '24px',
+              textAlign: 'center',
+              cursor: 'pointer',
+              background: dragOver ? 'rgba(26,26,46,0.05)' : 'transparent',
+              transition: 'all 0.2s',
+            }}
             onClick={() => document.getElementById('photo-input').click()}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              const file = e.dataTransfer.files[0];
+              if (file) handleFileSelect(file);
+            }}
           >
             {photoPreview ? (
               <img src={photoPreview} alt="Preview" style={{
                 maxWidth: '100%', maxHeight: '200px', objectFit: 'contain', borderRadius: '4px',
               }} />
             ) : (
-              <p style={{ color: '#888', fontSize: '14px', margin: 0 }}>Click to upload a photo</p>
+              <div>
+                <p style={{ color: '#888', fontSize: '14px', margin: '0 0 4px' }}>
+                  Drag & drop a photo here
+                </p>
+                <p style={{ color: '#bbb', fontSize: '12px', margin: 0 }}>
+                  or click to browse
+                </p>
+              </div>
             )}
             <input
               id="photo-input" type="file" accept="image/*"
-              onChange={handlePhotoChange}
+              onChange={(e) => {
+                const file = e.target.files[0];
+                if (file) handleFileSelect(file);
+              }}
               style={{ display: 'none' }}
             />
           </div>
@@ -233,7 +249,7 @@ export default function SpottingForm() {
         <FieldSection title="Airline">
           <FieldRow>
             <Field label="ICAO Code" name="airlineIcao" value={form.airlineIcao} onChange={handleChange} placeholder="Aircraft ICAO Code" />
-            <Field label="Name" name="airlineName" value={form.airlineName} onChange={handleChange} placeholder="Aircraft Type Name" />
+            <Field label="Name" name="airlineName" value={form.airlineName} onChange={handleChange} placeholder="Airline Name" />
           </FieldRow>
         </FieldSection>
 
