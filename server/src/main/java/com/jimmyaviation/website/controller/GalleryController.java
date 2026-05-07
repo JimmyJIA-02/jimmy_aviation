@@ -12,6 +12,9 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.HashMap;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api")
@@ -30,6 +33,21 @@ public class GalleryController {
                 "totalPages", spottingPage.getTotalPages(),
                 "totalElements", spottingPage.getTotalElements(),
                 "hasMore", spottingPage.hasNext()));
+    }
+
+    @GetMapping("/spotting/stats")
+    public ResponseEntity<Map<String, Object>> getStats() {
+        return ResponseEntity.ok(galleryService.getStats());
+    }
+
+    @GetMapping("/spotting/all")
+    public ResponseEntity<List<Spotting>> getAllSpottingsUnpaginated() {
+        return ResponseEntity.ok(galleryService.getAllSpottings());
+    }
+
+    @GetMapping("/spotting/filter/month/{month}")
+    public ResponseEntity<List<Spotting>> getByMonth(@PathVariable String month) {
+        return ResponseEntity.ok(galleryService.getByMonth(month));
     }
 
     // Get a specific spotting by ID, maybe used for a detailed view page
