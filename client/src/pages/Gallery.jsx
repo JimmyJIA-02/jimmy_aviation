@@ -3,6 +3,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import aboutContent from '../assets/about.md?raw';
+import { MapContainer, TileLayer, Marker, Tooltip } from 'react-leaflet';
+import L from 'leaflet';
+
 
 import api from '../api/axios';
 
@@ -12,9 +15,85 @@ const TABS = [
     { key: 'about', label: 'ABOUT ME' },
 ];
 
+const AIRPORT_COORDS = {
+    'MEL': { lat: -37.673, lng: 144.843 },
+}
+
+
 const LUNAR_ANIMALS = ['🐉', '🐍', '🐎', '🐑', '🐒', '🐓', '🐕', '🐖', '🐀', '🐂', '🐅', '🐇'];
 
 const getLunarAnimal = (year) => LUNAR_ANIMALS[(year - 2024) % 12];
+
+function SpottingMap({ locations }) {
+    const validLocations = locations.filter(l => AIRPORT_COORDS[l.iata]);
+
+    if (validLocations.length === 0) return null;
+
+    const center = AIRPORT_COORDS[validLocations[0].iata];
+    const maxCount = Math.max(...validLocations.map(l => l.count));
+
+    return (
+        <div style={{
+            borderRadius: '12px',
+            overflow: 'hidden',
+            border: '1px solid #eee',
+            marginBottom: '32px',
+        }}>
+            <MapContainer
+                center={[center.lat, center.lng]}
+                zoom={4}
+                style={{ height: '360px', width: '100%' }}
+                scrollWheelZoom={false}
+            >
+                <TileLayer
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                {validLocations.map(loc => {
+                    const coords = AIRPORT_COORDS[loc.iata];
+                    const radius = 12 + (loc.count / maxCount) * 20;
+                    const size = radius * 2;
+
+                    const icon = L.divIcon({
+                        className: '',
+                        html: `<div style="
+              width: ${size}px;
+              height: ${size}px;
+              border-radius: 50%;
+              background: #1a1a2e;
+              opacity: 0.85;
+              color: #fff;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: ${size > 40 ? 14 : 12}px;
+              font-weight: 700;
+              font-family: 'DM Sans', sans-serif;
+              border: 2px solid #fff;
+              box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            ">${loc.count}</div>`,
+                        iconSize: [size, size],
+                        iconAnchor: [size / 2, size / 2],
+                    });
+
+                    return (
+                        <Marker
+                            key={loc.iata}
+                            position={[coords.lat, coords.lng]}
+                            icon={icon}
+                        >
+                            <Tooltip direction="top" offset={[0, -radius]}>
+                                <div style={{ fontFamily: "'DM Sans', sans-serif", textAlign: 'center' }}>
+                                    <strong>{loc.name} ({loc.iata})</strong>
+                                </div>
+                            </Tooltip>
+                        </Marker>
+                    );
+                })}
+            </MapContainer>
+        </div>
+    );
+}
 
 export default function Gallery() {
     const [spottings, setSpottings] = useState([]);
@@ -30,6 +109,8 @@ export default function Gallery() {
     const [page, setPage] = useState(0);
     const [hasMore, setHasMore] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
+    const [stats, setStats] = useState(null);
+    const [selectedSpottings, setSelectedSpottings] = useState([]);
 
     useEffect(() => {
         const handleClickOutside = (e) => {
@@ -47,10 +128,14 @@ export default function Gallery() {
 
     const fetchData = async () => {
         try {
-            const res = await api.get('/spotting', { params: { page: 0, size: 12 } });
-            setSpottings(res.data.content);
-            setHasMore(res.data.hasMore);
+            const [spottingsRes, statsRes] = await Promise.all([
+                api.get('/spotting', { params: { page: 0, size: 12 } }),
+                api.get('/spotting/stats'),
+            ]);
+            setSpottings(spottingsRes.data.content);
+            setHasMore(spottingsRes.data.hasMore);
             setPage(0);
+            setStats(statsRes.data);
         } catch (err) {
             console.error('Failed to fetch', err);
         } finally {
@@ -74,14 +159,7 @@ export default function Gallery() {
     };
 
     const getMonthGroups = () => {
-        const groups = {};
-        spottings.forEach(s => {
-            if (!s.spotDate) return;
-            const key = s.spotDate.slice(0, 7); // "2026-03"
-            if (!groups[key]) groups[key] = [];
-            groups[key].push(s);
-        });
-        return groups;
+        return stats?.monthCounts || {};
     };
 
     const getMonthRange = () => {
@@ -100,17 +178,9 @@ export default function Gallery() {
         return months;
     };
 
-    const airlines = [...new Map(
-        spottings.filter(s => s.airline).map(s => [s.airline.id, s.airline])
-    ).values()];
-
-    const aircraft = [...new Map(
-        spottings.filter(s => s.aircraft).map(s => [s.aircraft.icaoCode, s.aircraft])
-    ).values()];
-
-    const airports = [...new Map(
-        spottings.filter(s => s.spotLocation).map(s => [s.spotLocation.id, s.spotLocation])
-    ).values()];
+    const airlines = stats?.filters?.airlines ? [...stats.filters.airlines] : [];
+    const aircraft = stats?.filters?.aircraft ? [...stats.filters.aircraft] : [];
+    const airports = stats?.filters?.airports ? [...stats.filters.airports] : [];
 
     const handleLike = async (id) => {
         try {
@@ -126,6 +196,10 @@ export default function Gallery() {
     const getPhotoUrl = (url) => {
         if (!url) return null;
         return url.startsWith('/api') ? url : `/api/photo/${url}`;
+    };
+
+    const getLocationCounts = () => {
+        return stats?.locations || [];
     };
 
     const filtered = spottings
@@ -236,7 +310,6 @@ export default function Gallery() {
         const monthGroups = getMonthGroups();
         const months = getMonthRange();
         const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        const selectedSpottings = selectedMonth ? (monthGroups[selectedMonth] || []) : [];
 
         const yearGroups = {};
         months.forEach(m => {
@@ -250,12 +323,15 @@ export default function Gallery() {
 
                 <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '40px 24px' }}>
 
+                    <SpottingMap locations={getLocationCounts()} />
+
                     {/* Collapsed bar */}
                     {calendarCollapsed && selectedMonth && (
                         <div
                             onClick={() => {
                                 setCalendarCollapsed(false);
                                 setSelectedMonth(null);
+                                setSelectedSpottings([]);
                             }}
                             style={{
                                 display: 'flex',
@@ -309,21 +385,28 @@ export default function Gallery() {
                                     gap: '20px',
                                 }}>
                                     {[...yearMonths].reverse().map(({ key, month }) => {
-                                        const count = (monthGroups[key] || []).length;
+                                        const count = monthGroups[key] || 0;
                                         const hasSpottings = count > 0;
                                         const isSelected = selectedMonth === key;
 
                                         return (
                                             <div
                                                 key={key}
-                                                onClick={() => {
+                                                onClick={async () => {
                                                     if (hasSpottings) {
                                                         if (isSelected) {
                                                             setSelectedMonth(null);
                                                             setCalendarCollapsed(false);
+                                                            setSelectedSpottings([]);
                                                         } else {
                                                             setSelectedMonth(key);
                                                             setCalendarCollapsed(true);
+                                                            try {
+                                                                const res = await api.get('/spotting/filter/month/' + key);
+                                                                setSelectedSpottings(res.data);
+                                                            } catch (err) {
+                                                                console.error('Failed to fetch month spottings', err);
+                                                            }
                                                         }
                                                     }
                                                 }}
@@ -541,7 +624,7 @@ export default function Gallery() {
                                                 color: filters.airport === a.id ? '#fff' : '#333',
                                                 transition: 'all 0.15s',
                                             }}
-                                        >{a.iataCode}</button>
+                                        >{a.iata}</button>
                                     ))}
                                 </div>
                             </div>
