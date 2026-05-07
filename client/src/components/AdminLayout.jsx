@@ -84,6 +84,26 @@ export default function AdminLayout() {
           </NavLink>
         </div>
 
+        <div style={{ padding: '0 16px 8px' }}>
+          <NavLink
+            to="/"
+            style={({ isActive }) => ({
+              display: 'block',
+              padding: '12px 16px',
+              borderRadius: '8px',
+              color: isActive ? '#fff' : '#aaa',
+              background: isActive ? 'rgba(255,255,255,0.08)' : 'transparent',
+              textDecoration: 'none',
+              fontSize: '16px',
+              fontWeight: isActive ? 600 : 400,
+              transition: 'all 0.15s',
+              marginBottom: '8px',
+            })}
+          >
+            Public Gallery
+          </NavLink>
+        </div>
+
         <div style={{ padding: '20px 16px', borderTop: '1px solid rgba(255,255,255,0.08)' }}></div>
 
         <div style={{ padding: '20px 16px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
