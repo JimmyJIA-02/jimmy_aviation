@@ -1,0 +1,25 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/aviation
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+      
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: 86400000 
+
+aws:
+  s3:
+    bucket: ${BUCKET_NAME}
+    region: ap-southeast-2
+  credentials:
+    access-key: ${AWS_ACCESS_KEY}
+    secret-key: ${AWS_SECRET_KEY}
+
+adb:
+  host: https://aerodatabox.p.rapidapi.com
+  token: ${ADB_TOKEN}
