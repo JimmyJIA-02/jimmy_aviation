@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 
@@ -7,8 +7,12 @@ const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789- '.split('');
 function SplitFlapChar({ targetChar, delay }) {
     const [currentChar, setCurrentChar] = useState(' ');
     const [flipping, setFlipping] = useState(false);
+    const hasAnimated = useRef(false);
 
     useEffect(() => {
+        if (hasAnimated.current) return;
+        hasAnimated.current = true;
+
         const target = (targetChar || ' ').toUpperCase();
         let timeout;
         let flipCount = 0;
@@ -34,15 +38,15 @@ function SplitFlapChar({ targetChar, delay }) {
         }, delay);
 
         return () => clearTimeout(timeout);
-    }, [targetChar, delay]);
+    }, []);
 
     return (
         <div style={{
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: '24px',
-            height: '34px',
+            width: '20px',
+            height: '28px',
             background: '#1a1a1a',
             borderRadius: '3px',
             margin: '0 1px',
@@ -61,7 +65,7 @@ function SplitFlapChar({ targetChar, delay }) {
             }} />
             <span style={{
                 color: '#f0e060',
-                fontSize: '18px',
+                fontSize: '15px',
                 fontWeight: 700,
                 fontFamily: "'Courier New', monospace",
                 transform: flipping ? 'perspective(200px) rotateX(90deg)' : 'perspective(200px) rotateX(0deg)',
@@ -82,18 +86,16 @@ function SplitFlapRow({ label, value, maxLen = 16 }) {
             <p style={{
                 fontSize: '11px',
                 fontWeight: 600,
-                color: '#ffffffc7',
+                color: '#888',
                 textTransform: 'uppercase',
                 letterSpacing: '1.5px',
-                marginBottom: '8px',
+                marginBottom: '6px',
+                textAlign: 'left',
+                width: '100%',
             }}>{label}</p>
             <div style={{
-                display: 'inline-flex',
-                background: '#111',
-                padding: '8px 10px',
-                borderRadius: '8px',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.05)',
-                border: '1px solid #333',
+                display: 'flex',
+                justifyContent: 'center',
             }}>
                 {text.split('').map((char, i) => (
                     <SplitFlapChar key={i} targetChar={char} delay={i * 80 + Math.random() * 150} />
@@ -264,47 +266,52 @@ export default function SpottingDetail() {
                 {/* Split-flap display */}
                 <div style={{
                     display: 'flex',
-                    gap: '16px',
-                    marginBottom: '32px',
-                    flexWrap: 'wrap',
+                    justifyContent: 'space-between',
+                    marginBottom: '16px',
                 }}>
                     <div style={{
-                        flex: '1 1 200px',
-                        minWidth: '200px',
                         background: '#0a0a0a',
                         borderRadius: '10px',
-                        padding: '12px 16px',
+                        padding: '14px 18px',
                         boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
                         border: '1px solid #222',
                     }}>
-                        <SplitFlapRow label="Flight" value={spotting.flight?.flightNumber} maxLen={8} />
+                        <SplitFlapRow label="Flight" value={spotting.flight?.flightNumber} maxLen={6} />
                     </div>
 
                     <div style={{
-                        flex: '1 1 200px',
-                        minWidth: '200px',
                         background: '#0a0a0a',
                         borderRadius: '10px',
-                        padding: '12px 16px',
+                        padding: '14px 18px',
                         boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
                         border: '1px solid #222',
                     }}>
-                        <SplitFlapRow label="From" value={spotting.flight?.departureAirport} maxLen={10} />
+                        <SplitFlapRow label="From" value={spotting.flight?.departureAirport} maxLen={12} />
                     </div>
 
                     <div style={{
-                        flex: '1 1 200px',
-                        minWidth: '200px',
                         background: '#0a0a0a',
                         borderRadius: '10px',
-                        padding: '12px 16px',
+                        padding: '14px 18px',
                         boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
                         border: '1px solid #222',
                     }}>
-                        <SplitFlapRow label="To" value={spotting.flight?.arrivalAirport} maxLen={10} />
+                        <SplitFlapRow label="To" value={spotting.flight?.arrivalAirport} maxLen={12} />
                     </div>
                 </div>
             </div>
+            <footer style={{
+                textAlign: 'center',
+                padding: '48px 24px 32px',
+                color: '#bbb',
+                fontSize: '13px',
+                fontFamily: "'DM Sans', sans-serif",
+                borderTop: '1px solid #f0f0f0',
+                marginTop: '48px',
+            }}>
+                <p style={{ marginBottom: '4px' }}>© {new Date().getFullYear()} Jimmy's Aviation · Melbourne, Australia</p>
+                <p>COYG!</p>
+            </footer>
         </div>
     );
 }
