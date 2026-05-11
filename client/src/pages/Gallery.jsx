@@ -302,6 +302,18 @@ export default function Gallery() {
                         }} />
                     </div>
                 </div>
+                <footer style={{
+                    textAlign: 'center',
+                    padding: '48px 24px 32px',
+                    color: '#bbb',
+                    fontSize: '13px',
+                    fontFamily: "'DM Sans', sans-serif",
+                    borderTop: '1px solid #f0f0f0',
+                    marginTop: '48px',
+                }}>
+                    <p style={{ marginBottom: '4px' }}>© {new Date().getFullYear()} Jimmy's Aviation · Melbourne, Australia</p>
+                    <p>COYG!</p>
+                </footer>
             </div>
         );
     }
@@ -490,6 +502,18 @@ export default function Gallery() {
                     )}
 
                 </div>
+                <footer style={{
+                    textAlign: 'center',
+                    padding: '48px 24px 32px',
+                    color: '#bbb',
+                    fontSize: '13px',
+                    fontFamily: "'DM Sans', sans-serif",
+                    borderTop: '1px solid #f0f0f0',
+                    marginTop: '48px',
+                }}>
+                    <p style={{ marginBottom: '4px' }}>© {new Date().getFullYear()} Jimmy's Aviation · Melbourne, Australia</p>
+                    <p>COYG!</p>
+                </footer>
             </div>
         );
     }
@@ -710,6 +734,19 @@ export default function Gallery() {
                     </button>
                 </div>
             )}
+
+            <footer style={{
+                textAlign: 'center',
+                padding: '48px 24px 32px',
+                color: '#bbb',
+                fontSize: '13px',
+                fontFamily: "'DM Sans', sans-serif",
+                borderTop: '1px solid #f0f0f0',
+                marginTop: '48px',
+            }}>
+                <p style={{ marginBottom: '4px' }}>© {new Date().getFullYear()} Jimmy's Aviation · Melbourne, Australia</p>
+                <p>COYG!</p>
+            </footer>
         </div>
     );
 }
