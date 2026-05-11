@@ -67,8 +67,8 @@ export default function SpottingForm() {
           airlineIcao: s.airline?.icaoCode || '',
           airlineName: s.airline?.airlineName || '',
           flightNumber: s.flight?.flightNumber || '',
-          departureCity: s.flight?.departureAirport || '',
-          arrivalCity: s.flight?.arrivalAirport || '',
+          departureAirport: s.flight?.departureAirport || '',
+          arrivalAirport: s.flight?.arrivalAirport || '',
           spotLocationIata: s.spotLocation?.iataCode || '',
           spotLocationName: s.spotLocation?.airportName || '',
           spotLocationCity: s.spotLocation?.city || '',
@@ -78,18 +78,30 @@ export default function SpottingForm() {
           setPhotoPreview(s.photoUrl.startsWith('/api') ? s.photoUrl : `/api/photo/${s.photoUrl}`);
         }
       }).catch(() => setError('Failed to load spotting'));
+    } else {
+      // Restore draft
+      const draft = sessionStorage.getItem('spottingDraft');
+      if (draft) {
+        try {
+          setForm(JSON.parse(draft));
+        } catch (e) { }
+      }
     }
   }, [id, isEditing]);
 
   const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const updated = { ...form, [e.target.name]: e.target.value };
+    setForm(updated);
+    sessionStorage.setItem('spottingDraft', JSON.stringify(updated));
   };
 
   const handleCountryBlur = (e) => {
     const { name, value } = e.target;
     const normalized = normalizeCountry(value);
     if (normalized !== value) {
-      setForm({ ...form, [name]: normalized });
+      const updated = { ...form, [name]: normalized };
+      setForm(updated);
+      sessionStorage.setItem('spottingDraft', JSON.stringify(updated));
     }
   };
 
@@ -99,11 +111,11 @@ export default function SpottingForm() {
 
     try {
       const tags = await ExifReader.load(file);
+      const updates = {};
 
       if (tags['DateTimeOriginal']) {
         const raw = tags['DateTimeOriginal'].description;
-        const formatted = raw.split(' ')[0].replace(/:/g, '-');
-        setForm(prev => ({ ...prev, spotDate: formatted }));
+        updates.spotDate = raw.split(' ')[0].replace(/:/g, '-');
       }
 
       const parts = [];
@@ -120,9 +132,13 @@ export default function SpottingForm() {
       const iso = tags['ISOSpeedRatings']?.description;
       if (iso) parts.push(`ISO ${iso}`);
 
-      if (parts.length > 0) {
-        setForm(prev => ({ ...prev, notes: parts.join(' · ') }));
-      }
+      if (parts.length > 0) updates.notes = parts.join(' · ');
+
+      setForm(prev => {
+        const updated = { ...prev, ...updates };
+        sessionStorage.setItem('spottingDraft', JSON.stringify(updated));
+        return updated;
+      });
     } catch (err) {
       console.log('No EXIF data found', err);
     }
@@ -158,6 +174,7 @@ export default function SpottingForm() {
       }
 
       navigate('/admin');
+      sessionStorage.removeItem('spottingDraft');
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to save');
     } finally {
@@ -258,8 +275,8 @@ export default function SpottingForm() {
             <Field label="Flight Number" name="flightNumber" value={form.flightNumber} onChange={handleChange} placeholder="QF94" />
           </FieldRow>
           <FieldRow>
-            <Field label="Departure" name="departureCity" value={form.departureCity} onChange={handleChange} placeholder="Aircraft Departure City (10 max)" />
-            <Field label="Arrival" name="arrivalCity" value={form.arrivalCity} onChange={handleChange} placeholder="Aircraft Arrival City (10 max)" />
+            <Field label="Departure" name="departureAirport" value={form.departureAirport} onChange={handleChange} placeholder="Aircraft Departure City (10 max)" />
+            <Field label="Arrival" name="arrivalAirport" value={form.arrivalAirport} onChange={handleChange} placeholder="Aircraft Arrival City (10 max)" />
           </FieldRow>
         </FieldSection>
 
@@ -296,7 +313,10 @@ export default function SpottingForm() {
           }}>
             {saving ? 'Saving...' : isEditing ? 'Update' : 'Create'}
           </button>
-          <button type="button" onClick={() => navigate('/admin')} style={{
+          <button type="button" onClick={() => {
+            sessionStorage.removeItem('spottingDraft');
+            navigate('/admin');
+          }} style={{
             padding: '10px 24px', background: '#fff', color: '#333',
             border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px',
             cursor: 'pointer',
