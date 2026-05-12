@@ -79,7 +79,7 @@ public class AdminSpottingService {
     }
 
     private Aircraft findOrCreateAircraft(String icaoCode, String typeName) {
-        return aircraftRepository.findByIcaoCode(icaoCode)
+        return aircraftRepository.findByIcaoCodeAndTypeName(icaoCode, typeName)
                 .orElseGet(() -> {
                     Aircraft a = new Aircraft();
                     a.setIcaoCode(icaoCode);

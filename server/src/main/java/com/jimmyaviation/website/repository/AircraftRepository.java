@@ -9,4 +9,5 @@ import com.jimmyaviation.website.entity.Aircraft;
 
 public interface AircraftRepository extends JpaRepository<Aircraft, UUID> {
     Optional<Aircraft> findByIcaoCode(String icaoCode);
+    Optional<Aircraft> findByIcaoCodeAndTypeName(String icaoCode, String typeName);
 }
