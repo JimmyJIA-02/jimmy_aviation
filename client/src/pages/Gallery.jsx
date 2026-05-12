@@ -102,7 +102,7 @@ export default function Gallery() {
     const [search, setSearch] = useState('');
     const [showFilter, setShowFilter] = useState(false);
     const [selectedMonth, setSelectedMonth] = useState(null);
-    const [filters, setFilters] = useState({ airline: '', aircraft: '', airport: '' });
+    const [filters, setFilters] = useState({ aircraft: '', airport: '' });
     const [calendarCollapsed, setCalendarCollapsed] = useState(false);
     const [likedIds, setLikedIds] = useState(new Set());
     const filterRef = useRef(null);
@@ -178,7 +178,6 @@ export default function Gallery() {
         return months;
     };
 
-    const airlines = stats?.filters?.airlines ? [...stats.filters.airlines] : [];
     const aircraft = stats?.filters?.aircraft ? [...stats.filters.aircraft] : [];
     const airports = stats?.filters?.airports ? [...stats.filters.airports] : [];
 
@@ -204,7 +203,6 @@ export default function Gallery() {
 
     const filtered = spottings
         .filter(s => {
-            if (filters.airline && s.airline?.id !== filters.airline) return false;
             if (filters.aircraft && s.aircraft?.id !== filters.aircraft) return false;
             if (filters.airport && s.spotLocation?.id !== filters.airport) return false;
             return true;
@@ -224,10 +222,10 @@ export default function Gallery() {
         });
 
     const clearFilters = () => {
-        setFilters({ airline: '', aircraft: '', airport: '' });
+        setFilters({ aircraft: '', airport: '' });
     };
 
-    const hasActiveFilters = filters.airline || filters.aircraft || filters.airport;
+    const hasActiveFilters = filters.aircraft || filters.airport;
 
     if (activeTab === 'about') {
         return (
@@ -562,20 +560,6 @@ export default function Gallery() {
                             boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
                             width: '320px',
                         }}>
-                            {/* Airline */}
-                            <div style={{ marginBottom: '16px' }}>
-                                <label style={filterLabelStyle}>Airline</label>
-                                <select
-                                    value={filters.airline}
-                                    onChange={(e) => setFilters({ ...filters, airline: e.target.value })}
-                                    style={selectStyle}
-                                >
-                                    <option value="">All Airlines</option>
-                                    {airlines.map(a => (
-                                        <option key={a.id} value={a.id}>{a.airlineName}</option>
-                                    ))}
-                                </select>
-                            </div>
 
                             {/* Aircraft — chip buttons */}
                             <div style={{ marginBottom: '16px' }}>
