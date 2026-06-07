@@ -53,6 +53,7 @@ export default function SpottingForm() {
   const [photoPreview, setPhotoPreview] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [lookingUp, setLookingUp] = useState(false);
 
   useEffect(() => {
     if (isEditing) {
@@ -88,6 +89,36 @@ export default function SpottingForm() {
       }
     }
   }, [id, isEditing]);
+
+  const handleRegistrationLookup = async () => {
+    if (!form.registration.trim()) return;
+    setLookingUp(true);
+    try {
+      const res = await api.get(`/admin/spotting/autofill/registration/${form.registration.trim()}`);
+      const data = res.data;
+
+      if (data.found === false) {
+        setError('Registration not found in AeroDataBox');
+        return;
+      }
+
+      const updates = {};
+
+      if (data.typeName) updates.aircraftTypeName = data.modelCode;
+      if (data.icaoCode) updates.aircraftIcao = data.icaoCode;
+      if (data.airlineName) updates.airlineName = data.airlineName;
+
+      setForm(prev => {
+        const updated = { ...prev, ...updates };
+        sessionStorage.setItem('spottingDraft', JSON.stringify(updated));
+        return updated;
+      });
+    } catch (err) {
+      setError('Failed to lookup registration');
+    } finally {
+      setLookingUp(false);
+    }
+  };
 
   const handleChange = (e) => {
     const updated = { ...form, [e.target.name]: e.target.value };
@@ -251,7 +282,7 @@ export default function SpottingForm() {
 
         <FieldSection title="Basic Info">
           <FieldRow>
-            <Field label="Registration" name="registration" value={form.registration} onChange={handleChange} placeholder="Aircraft Registration" />
+            <Field label="Registration" name="registration" value={form.registration} onChange={handleChange} placeholder="VH-OQA" />
             <Field label="Spot Date" name="spotDate" value={form.spotDate} onChange={handleChange} type="date" />
           </FieldRow>
         </FieldSection>
@@ -313,6 +344,25 @@ export default function SpottingForm() {
           }}>
             {saving ? 'Saving...' : isEditing ? 'Update' : 'Create'}
           </button>
+          <button
+            type="button"
+            onClick={handleRegistrationLookup}
+            disabled={lookingUp || !form.registration.trim()}
+            style={{
+              padding: '10px 16px',
+              background: lookingUp ? '#ccc' : '#1a1a2e',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '6px',
+              fontSize: '13px',
+              fontWeight: 600,
+              cursor: lookingUp ? 'wait' : 'pointer',
+              whiteSpace: 'nowrap',
+              opacity: !form.registration.trim() ? 0.5 : 1,
+            }}
+          >
+            {lookingUp ? 'Looking up...' : '🔍 Auto-fill'}
+          </button>
           <button type="button" onClick={() => {
             sessionStorage.removeItem('spottingDraft');
             navigate('/admin');
@@ -366,3 +416,4 @@ const labelStyle = {
   display: 'block', fontSize: '13px', fontWeight: 500,
   marginBottom: '6px', color: '#333',
 };
+

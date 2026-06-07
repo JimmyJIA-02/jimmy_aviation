@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.jimmyaviation.website.dto.PlannerFlight;
 import com.jimmyaviation.website.entity.Spotting;
 import com.jimmyaviation.website.service.AdminSpottingService;
+import com.jimmyaviation.website.service.AeroDataBoxService;
 import com.jimmyaviation.website.service.SpottingPlannerService;
 
 import lombok.RequiredArgsConstructor;
@@ -30,6 +31,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 public class AdminSpottingController {
     private final AdminSpottingService adminSpottingService;
     private final SpottingPlannerService spottingPlannerService;
+    private final AeroDataBoxService aeroDataBoxService;
 
     @GetMapping
     public ResponseEntity<List<Spotting>> getAllSpottings() {
@@ -96,5 +98,10 @@ public class AdminSpottingController {
             "arrivals", flights.get("arrivals"),
             "departures", flights.get("departures")
         ));
+    }
+
+    @GetMapping("/autofill/registration/{reg}")
+    public ResponseEntity<Map<String, Object>> getSpottingByRegistration(@PathVariable String reg) {
+        return ResponseEntity.ok(aeroDataBoxService.lookupByRegistration(reg));
     }
 }

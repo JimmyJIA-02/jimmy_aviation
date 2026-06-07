@@ -11,6 +11,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.Map;
 
 @Service
 public class AeroDataBoxService {
@@ -33,17 +34,19 @@ public class AeroDataBoxService {
 
     /**
      * Get arrivals and departures for an airport using relative time offsets.
-     * @param icaoCode Airport ICAO code (e.g. "YMML")
-     * @param offsetMinutes Minutes from now to start (negative = past). E.g. -120 = 2 hours ago.
+     * 
+     * @param icaoCode        Airport ICAO code (e.g. "YMML")
+     * @param offsetMinutes   Minutes from now to start (negative = past). E.g. -120
+     *                        = 2 hours ago.
      * @param durationMinutes Window size from offset. E.g. 720 = 12 hours.
-     * @param withCargo Whether to include cargo flights
-     * @param withPrivate Whether to include private flights
+     * @param withCargo       Whether to include cargo flights
+     * @param withPrivate     Whether to include private flights
      */
-    public AeroDataBoxResponse getPlanning(String icaoCode, int offsetMinutes, int durationMinutes, boolean withCargo, boolean withPrivate) {
+    public AeroDataBoxResponse getPlanning(String icaoCode, int offsetMinutes, int durationMinutes, boolean withCargo,
+            boolean withPrivate) {
         String url = String.format(
                 "%s/flights/airports/iata/%s?offsetMinutes=%d&durationMinutes=%d&direction=Both&withCancelled=false&withCodeshared=false&withCargo=%s&withPrivate=%s&withLocation=false",
-                baseUrl, icaoCode.toUpperCase(), offsetMinutes, durationMinutes, withCargo, withPrivate
-        );
+                baseUrl, icaoCode.toUpperCase(), offsetMinutes, durationMinutes, withCargo, withPrivate);
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
@@ -57,7 +60,8 @@ public class AeroDataBoxService {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() != 200) {
-                throw new RuntimeException("AeroDataBox API returned " + response.statusCode() + ": " + response.body());
+                throw new RuntimeException(
+                        "AeroDataBox API returned " + response.statusCode() + ": " + response.body());
             }
 
             return objectMapper.readValue(response.body(), AeroDataBoxResponse.class);
@@ -65,6 +69,36 @@ public class AeroDataBoxService {
             throw e;
         } catch (Exception e) {
             throw new RuntimeException("Failed to call AeroDataBox API", e);
+        }
+    }
+
+    public Map<String, Object> lookupByRegistration(String registration) {
+        String url = String.format("%s/aircrafts/reg/%s", baseUrl, registration.toUpperCase());
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("X-RapidAPI-Key", apiKey)
+                .header("X-RapidAPI-Host", baseUrl.replace("https://", ""))
+                .timeout(Duration.ofSeconds(15))
+                .GET()
+                .build();
+
+        try {
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() == 204 || response.statusCode() == 404) {
+                return Map.of("found", false);
+            }
+
+            if (response.statusCode() != 200) {
+                throw new RuntimeException("AeroDataBox API returned " + response.statusCode());
+            }
+
+            return objectMapper.readValue(response.body(), Map.class);
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to lookup registration", e);
         }
     }
 }
