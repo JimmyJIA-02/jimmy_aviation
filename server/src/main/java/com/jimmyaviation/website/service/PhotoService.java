@@ -3,8 +3,6 @@ package com.jimmyaviation.website.service;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
@@ -25,17 +23,11 @@ public class PhotoService {
 
     public PhotoService(
             @Value("${aws.s3.bucket}") String bucketName,
-            @Value("${aws.s3.region}") String region,
-            @Value("${aws.credentials.access-key}") String accessKey,
-            @Value("${aws.credentials.secret-key}") String secretKey) {
+            @Value("${aws.s3.region}") String region) {
         this.bucketName = bucketName;
         this.s3Client = S3Client.builder()
-            .region(Region.of(region))
-            .endpointOverride(java.net.URI.create("https://s3.ap-southeast-2.amazonaws.com"))
-            .credentialsProvider(StaticCredentialsProvider.create(
-                AwsBasicCredentials.create(accessKey, secretKey)
-        ))
-        .build();
+                .region(Region.of(region))
+                .build();
     }
 
     public String uploadPhoto(MultipartFile file) {
