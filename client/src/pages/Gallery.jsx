@@ -17,6 +17,7 @@ const TABS = [
 
 const AIRPORT_COORDS = {
     'MEL': { lat: -37.673, lng: 144.843 },
+    'SYD': { lat: -33.946, lng: 151.177 },
 }
 
 
