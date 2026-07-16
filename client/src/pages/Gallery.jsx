@@ -107,9 +107,6 @@ export default function Gallery() {
     const [calendarCollapsed, setCalendarCollapsed] = useState(false);
     const [likedIds, setLikedIds] = useState(new Set());
     const filterRef = useRef(null);
-    const [page, setPage] = useState(0);
-    const [hasMore, setHasMore] = useState(true);
-    const [loadingMore, setLoadingMore] = useState(false);
     const [stats, setStats] = useState(null);
     const [selectedSpottings, setSelectedSpottings] = useState([]);
 
@@ -130,12 +127,10 @@ export default function Gallery() {
     const fetchData = async () => {
         try {
             const [spottingsRes, statsRes] = await Promise.all([
-                api.get('/spotting', { params: { page: 0, size: 12 } }),
+                api.get('/spotting/all'),
                 api.get('/spotting/stats'),
             ]);
-            setSpottings(spottingsRes.data.content);
-            setHasMore(spottingsRes.data.hasMore);
-            setPage(0);
+            setSpottings(spottingsRes.data);
             setStats(statsRes.data);
         } catch (err) {
             console.error('Failed to fetch', err);
@@ -144,20 +139,6 @@ export default function Gallery() {
         }
     };
 
-    const loadMore = async () => {
-        setLoadingMore(true);
-        try {
-            const nextPage = page + 1;
-            const res = await api.get('/spotting', { params: { page: nextPage, size: 12 } });
-            setSpottings(prev => [...prev, ...res.data.content]);
-            setHasMore(res.data.hasMore);
-            setPage(nextPage);
-        } catch (err) {
-            console.error('Failed to load more', err);
-        } finally {
-            setLoadingMore(false);
-        }
-    };
 
     const getMonthGroups = () => {
         return stats?.monthCounts || {};
@@ -696,29 +677,6 @@ export default function Gallery() {
                 )}
             </div>
 
-            {hasMore && !loading && (
-                <div style={{ textAlign: 'center', marginTop: '32px' }}>
-                    <button
-                        onClick={loadMore}
-                        disabled={loadingMore}
-                        style={{
-                            padding: '12px 32px',
-                            background: '#1a1a2e',
-                            color: '#fff',
-                            border: 'none',
-                            borderRadius: '24px',
-                            fontSize: '14px',
-                            fontWeight: 600,
-                            cursor: loadingMore ? 'wait' : 'pointer',
-                            opacity: loadingMore ? 0.7 : 1,
-                            transition: 'opacity 0.2s',
-                            fontFamily: "'DM Sans', sans-serif",
-                        }}
-                    >
-                        {loadingMore ? 'Loading...' : 'Load More'}
-                    </button>
-                </div>
-            )}
 
             <footer style={{
                 textAlign: 'center',

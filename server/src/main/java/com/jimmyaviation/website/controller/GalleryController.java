@@ -23,18 +23,6 @@ public class GalleryController {
 
     private final GalleryService galleryService;
 
-    @GetMapping("/spotting")
-    public ResponseEntity<Map<String, Object>> getAllSpottings(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "12") int size) {
-        Page<Spotting> spottingPage = galleryService.getAllSpottings(page, size);
-        return ResponseEntity.ok(Map.of(
-                "content", spottingPage.getContent(),
-                "totalPages", spottingPage.getTotalPages(),
-                "totalElements", spottingPage.getTotalElements(),
-                "hasMore", spottingPage.hasNext()));
-    }
-
     @GetMapping("/spotting/stats")
     public ResponseEntity<Map<String, Object>> getStats() {
         return ResponseEntity.ok(galleryService.getStats());
