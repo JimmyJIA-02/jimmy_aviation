@@ -755,6 +755,7 @@ function SpottingCard({ spotting, onLike, getPhotoUrl }) {
                     <img
                         src={photoUrl}
                         alt={spotting.registration}
+                        loading="lazy"
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     />
                 ) : (
