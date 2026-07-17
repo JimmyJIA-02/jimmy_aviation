@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import aboutContent from '../assets/about.md?raw';
-import { MapContainer, TileLayer, Marker, Tooltip } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Tooltip, Polyline, Popup } from 'react-leaflet';
 import L from 'leaflet';
 
 
@@ -15,23 +15,33 @@ const TABS = [
     { key: 'about', label: 'ABOUT ME' },
 ];
 
-const AIRPORT_COORDS = {
-    'MEL': { lat: -37.673, lng: 144.843 },
-    'SYD': { lat: -33.946, lng: 151.177 },
-}
-
+const coordsCache = {};
 
 const LUNAR_ANIMALS = ['🐉', '🐍', '🐎', '🐑', '🐒', '🐓', '🐕', '🐖', '🐀', '🐂', '🐅', '🐇'];
 
 const getLunarAnimal = (year) => LUNAR_ANIMALS[(year - 2024) % 12];
 
 function SpottingMap({ locations }) {
-    const validLocations = locations.filter(l => AIRPORT_COORDS[l.iata]);
+    const [resolvedLocations, setResolvedLocations] = useState([]);
 
-    if (validLocations.length === 0) return null;
+    useEffect(() => {
+        const resolve = async () => {
+            const results = [];
+            for (const loc of locations) {
+                const coords = await geocodeCity(loc.city || loc.name);
+                if (coords) {
+                    results.push({ ...loc, coords });
+                }
+            }
+            setResolvedLocations(results);
+        };
+        resolve();
+    }, [locations]);
 
-    const center = AIRPORT_COORDS[validLocations[0].iata];
-    const maxCount = Math.max(...validLocations.map(l => l.count));
+    if (resolvedLocations.length === 0) return null;
+
+    const center = [resolvedLocations[0].coords.lat, resolvedLocations[0].coords.lng];
+    const maxCount = Math.max(...resolvedLocations.map(l => l.count));
 
     return (
         <div style={{
@@ -41,7 +51,7 @@ function SpottingMap({ locations }) {
             marginBottom: '32px',
         }}>
             <MapContainer
-                center={[center.lat, center.lng]}
+                center={center}
                 zoom={4}
                 style={{ height: '360px', width: '100%' }}
                 scrollWheelZoom={false}
@@ -50,29 +60,27 @@ function SpottingMap({ locations }) {
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
-                {validLocations.map(loc => {
-                    const coords = AIRPORT_COORDS[loc.iata];
-                    const radius = 12 + (loc.count / maxCount) * 20;
-                    const size = radius * 2;
+                {resolvedLocations.map(loc => {
+                    const size = 24 + (loc.count / maxCount) * 40;
 
                     const icon = L.divIcon({
                         className: '',
                         html: `<div style="
-              width: ${size}px;
-              height: ${size}px;
-              border-radius: 50%;
-              background: #1a1a2e;
-              opacity: 0.85;
-              color: #fff;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              font-size: ${size > 40 ? 14 : 12}px;
-              font-weight: 700;
-              font-family: 'DM Sans', sans-serif;
-              border: 2px solid #fff;
-              box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-            ">${loc.count}</div>`,
+                            width: ${size}px;
+                            height: ${size}px;
+                            border-radius: 50%;
+                            background: #1a1a2e;
+                            opacity: 0.85;
+                            color: #fff;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            font-size: ${size > 40 ? 14 : 12}px;
+                            font-weight: 700;
+                            font-family: 'DM Sans', sans-serif;
+                            border: 2px solid #fff;
+                            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+                        ">${loc.count}</div>`,
                         iconSize: [size, size],
                         iconAnchor: [size / 2, size / 2],
                     });
@@ -80,13 +88,238 @@ function SpottingMap({ locations }) {
                     return (
                         <Marker
                             key={loc.iata}
-                            position={[coords.lat, coords.lng]}
+                            position={[loc.coords.lat, loc.coords.lng]}
                             icon={icon}
                         >
-                            <Tooltip direction="top" offset={[0, -radius]}>
+                            <Tooltip direction="top" offset={[0, -size / 2]}>
                                 <div style={{ fontFamily: "'DM Sans', sans-serif", textAlign: 'center' }}>
                                     <strong>{loc.name} ({loc.iata})</strong>
                                 </div>
+                            </Tooltip>
+                        </Marker>
+                    );
+                })}
+            </MapContainer>
+        </div>
+    );
+}
+
+async function geocodeCity(cityName) {
+    if (coordsCache[cityName]) return coordsCache[cityName];
+
+    // Check localStorage cache
+    const cached = localStorage.getItem(`geo_${cityName}`);
+    if (cached) {
+        const parsed = JSON.parse(cached);
+        coordsCache[cityName] = parsed;
+        return parsed;
+    }
+
+    try {
+        const res = await fetch(
+            `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cityName + ' airport')}&format=json&limit=1`
+        );
+        const data = await res.json();
+
+        if (data.length > 0) {
+            const coords = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+            coordsCache[cityName] = coords;
+            localStorage.setItem(`geo_${cityName}`, JSON.stringify(coords));
+            return coords;
+        }
+    } catch (err) {
+        console.error('Geocode failed for', cityName, err);
+    }
+
+    return null;
+}
+
+function computeArc(from, to, numPoints = 50) {
+    const points = [];
+    const toRad = (deg) => (deg * Math.PI) / 180;
+    const toDeg = (rad) => (rad * 180) / Math.PI;
+
+    const lat1 = toRad(from.lat);
+    const lng1 = toRad(from.lng);
+    const lat2 = toRad(to.lat);
+    const lng2 = toRad(to.lng);
+
+    const d = 2 * Math.asin(
+        Math.sqrt(
+            Math.pow(Math.sin((lat1 - lat2) / 2), 2) +
+            Math.cos(lat1) * Math.cos(lat2) * Math.pow(Math.sin((lng1 - lng2) / 2), 2)
+        )
+    );
+
+    if (d === 0) return [[from.lat, from.lng], [to.lat, to.lng]];
+
+    for (let i = 0; i <= numPoints; i++) {
+        const f = i / numPoints;
+        const A = Math.sin((1 - f) * d) / Math.sin(d);
+        const B = Math.sin(f * d) / Math.sin(d);
+        const x = A * Math.cos(lat1) * Math.cos(lng1) + B * Math.cos(lat2) * Math.cos(lng2);
+        const y = A * Math.cos(lat1) * Math.sin(lng1) + B * Math.cos(lat2) * Math.sin(lng2);
+        const z = A * Math.sin(lat1) + B * Math.sin(lat2);
+        const lat = toDeg(Math.atan2(z, Math.sqrt(x * x + y * y)));
+        const lng = toDeg(Math.atan2(y, x));
+        points.push([lat, lng]);
+    }
+
+    return points;
+}
+
+function RouteMap({ spottings }) {
+    const [routes, setRoutes] = useState([]);
+    const [cities, setCities] = useState({});
+
+    useEffect(() => {
+        const resolve = async () => {
+            const routeMap = {};
+            spottings.forEach(s => {
+                if (!s.flight?.departureAirport || !s.flight?.arrivalAirport) return;
+                const dep = s.flight.departureAirport;
+                const arr = s.flight.arrivalAirport;
+                const key = [dep, arr].sort().join(' ↔ ');
+                if (!routeMap[key]) {
+                    routeMap[key] = { from: dep, to: arr, count: 0, flights: [] };
+                }
+                routeMap[key].count++;
+                routeMap[key].flights.push({
+                    flightNumber: s.flight.flightNumber,
+                    aircraft: s.aircraft?.icaoCode || '—',
+                    airline: s.airline?.airlineName || '—',
+                    registration: s.registration || '—',
+                    date: s.spotDate || '—',
+                });
+            });
+
+            const resolvedRoutes = [];
+            const resolvedCities = {};
+
+            for (const route of Object.values(routeMap)) {
+                const fromCoords = await geocodeCity(route.from);
+                const toCoords = await geocodeCity(route.to);
+                if (fromCoords && toCoords) {
+                    resolvedRoutes.push({ ...route, fromCoords, toCoords });
+                    resolvedCities[route.from] = fromCoords;
+                    resolvedCities[route.to] = toCoords;
+                }
+            }
+
+            setRoutes(resolvedRoutes);
+            setCities(resolvedCities);
+        };
+        resolve();
+    }, [spottings]);
+
+    if (routes.length === 0) return null;
+
+    const maxCount = Math.max(...routes.map(r => r.count));
+
+    return (
+        <div style={{
+            borderRadius: '12px',
+            overflow: 'hidden',
+            border: '1px solid #eee',
+            marginBottom: '32px',
+        }}>
+            <MapContainer
+                center={[-10, 120]}
+                zoom={3}
+                style={{ height: '420px', width: '100%' }}
+                scrollWheelZoom={false}
+            >
+                <TileLayer
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+
+                {routes.map((route, i) => {
+                    const arcPoints = computeArc(route.fromCoords, route.toCoords);
+                    const weight = 2 + (route.count / maxCount) * 3;
+
+                    return (
+                        <Polyline
+                            key={i}
+                            positions={arcPoints}
+                            pathOptions={{
+                                color: '#1a1a2e',
+                                weight: weight,
+                                opacity: 0.6,
+                                dashArray: '6 4',
+                            }}
+                        >
+                            <Tooltip sticky>
+                                <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                                    <strong>{route.from} ↔ {route.to}</strong> · {route.count} spotting{route.count !== 1 ? 's' : ''} · Click for details
+                                </div>
+                            </Tooltip>
+                            <Popup maxWidth={320}>
+                                <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                                    <h3 style={{
+                                        fontSize: '15px',
+                                        fontWeight: 700,
+                                        margin: '0 0 12px',
+                                        paddingBottom: '8px',
+                                        borderBottom: '1px solid #eee',
+                                    }}>
+                                        {route.from} ↔ {route.to}
+                                    </h3>
+                                    <div style={{ maxHeight: '250px', overflowY: 'auto' }}>
+                                        {route.flights.map((f, j) => (
+                                            <div key={j} style={{
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center',
+                                                padding: '6px 0',
+                                                borderBottom: j < route.flights.length - 1 ? '1px solid #f0f0f0' : 'none',
+                                                fontSize: '13px',
+                                            }}>
+                                                <div>
+                                                    <span style={{ fontWeight: 600 }}>{f.flightNumber}</span>
+                                                    <span style={{ color: '#888', marginLeft: '8px' }}>{f.airline}</span>
+                                                </div>
+                                                <div style={{ textAlign: 'right' }}>
+                                                    <span style={{ color: '#555' }}>{f.aircraft}</span>
+                                                    <span style={{ color: '#aaa', marginLeft: '8px', fontSize: '12px' }}>{f.registration}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <p style={{
+                                        fontSize: '11px',
+                                        color: '#888',
+                                        margin: '8px 0 0',
+                                        paddingTop: '8px',
+                                        borderTop: '1px solid #eee',
+                                    }}>
+                                        {route.count} spotting{route.count !== 1 ? 's' : ''} on this route
+                                    </p>
+                                </div>
+                            </Popup>
+                        </Polyline>
+                    );
+                })}
+
+                {Object.entries(cities).map(([name, coords]) => {
+                    const icon = L.divIcon({
+                        className: '',
+                        html: `<div style="
+                            width: 10px;
+                            height: 10px;
+                            border-radius: 50%;
+                            background: #1a1a2e;
+                            border: 2px solid #fff;
+                            box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+                        "></div>`,
+                        iconSize: [10, 10],
+                        iconAnchor: [5, 5],
+                    });
+
+                    return (
+                        <Marker key={name} position={[coords.lat, coords.lng]} icon={icon}>
+                            <Tooltip direction="top" offset={[0, -8]}>
+                                <strong style={{ fontFamily: "'DM Sans', sans-serif" }}>{name}</strong>
                             </Tooltip>
                         </Marker>
                     );
@@ -106,7 +339,7 @@ export default function Gallery() {
     const [selectedYear, setSelectedYear] = useState(null);
     const [filters, setFilters] = useState({ aircraft: '', airport: '' });
     const [calendarCollapsed, setCalendarCollapsed] = useState(false);
-    const [likedIds, setLikedIds] = useState(new Set());
+    const [likedIds] = useState(new Set());
     const filterRef = useRef(null);
     const [stats, setStats] = useState(null);
     const [selectedSpottings, setSelectedSpottings] = useState([]);
@@ -347,6 +580,17 @@ export default function Gallery() {
                         marginBottom: '16px',
                         marginTop: '12px',
                         letterSpacing: '-0.3px',
+                    }}>Spotting Routes</h2>
+
+                    <RouteMap spottings={spottings} />
+
+                    <h2 style={{
+                        fontSize: '18px',
+                        fontWeight: 700,
+                        color: '#1a1a2e',
+                        marginBottom: '16px',
+                        marginTop: '12px',
+                        letterSpacing: '-0.3px',
                     }}>Spotting Timeline</h2>
 
                     {/* Collapsed bar — shown when a month is selected */}
@@ -486,20 +730,20 @@ export default function Gallery() {
                                     >
                                         ←
                                     </button>
-                                    <h3 style={{
-                                        fontSize: '25px',
-                                        fontWeight: 700,
+                                    <div style={{
+                                        fontSize: '20px',
+                                        fontWeight: 200,
                                         color: '#1a1a2e',
                                         margin: 0,
                                     }}>
                                         {selectedYear}
-                                        <span style={{ fontWeight: 400, marginLeft: '10px' }}>
+                                        <span style={{ marginLeft: '10px' }}>
                                             {getLunarAnimal(Number(selectedYear))}
                                         </span>
-                                        <span style={{ fontSize: '14px', fontWeight: 400, color: '#888', marginLeft: '12px' }}>
+                                        <span style={{ fontSize: '14px', color: '#888', marginLeft: '12px' }}>
                                             {yearCounts[selectedYear] || 0} spottings
                                         </span>
-                                    </h3>
+                                    </div>
                                 </div>
 
                                 <div style={{
