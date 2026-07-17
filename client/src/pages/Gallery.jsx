@@ -135,7 +135,6 @@ async function geocodeCity(cityName) {
 }
 
 function computeArc(from, to, numPoints = 50) {
-    const points = [];
     const toRad = (deg) => (deg * Math.PI) / 180;
     const toDeg = (rad) => (rad * 180) / Math.PI;
 
@@ -151,8 +150,9 @@ function computeArc(from, to, numPoints = 50) {
         )
     );
 
-    if (d === 0) return [[from.lat, from.lng], [to.lat, to.lng]];
+    if (d === 0) return [[[from.lat, from.lng], [to.lat, to.lng]]];
 
+    const points = [];
     for (let i = 0; i <= numPoints; i++) {
         const f = i / numPoints;
         const A = Math.sin((1 - f) * d) / Math.sin(d);
@@ -165,7 +165,24 @@ function computeArc(from, to, numPoints = 50) {
         points.push([lat, lng]);
     }
 
-    return points;
+    // Split into segments at antimeridian crossings
+    const segments = [];
+    let currentSegment = [points[0]];
+
+    for (let i = 1; i < points.length; i++) {
+        const prevLng = points[i - 1][1];
+        const currLng = points[i][1];
+
+        if (Math.abs(currLng - prevLng) > 180) {
+            // Crossed the antimeridian — split here
+            segments.push(currentSegment);
+            currentSegment = [];
+        }
+        currentSegment.push(points[i]);
+    }
+    segments.push(currentSegment);
+
+    return segments;
 }
 
 function RouteMap({ spottings }) {
@@ -235,13 +252,13 @@ function RouteMap({ spottings }) {
                 />
 
                 {routes.map((route, i) => {
-                    const arcPoints = computeArc(route.fromCoords, route.toCoords);
+                    const segments = computeArc(route.fromCoords, route.toCoords);
                     const weight = 2 + (route.count / maxCount) * 3;
 
-                    return (
+                    return segments.map((segment, j) => (
                         <Polyline
-                            key={i}
-                            positions={arcPoints}
+                            key={`${i}-${j}`}
+                            positions={segment}
                             pathOptions={{
                                 color: '#1a1a2e',
                                 weight: weight,
@@ -249,56 +266,60 @@ function RouteMap({ spottings }) {
                                 dashArray: '6 4',
                             }}
                         >
-                            <Tooltip sticky>
-                                <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                                    <strong>{route.from} ↔ {route.to}</strong> · {route.count} spotting{route.count !== 1 ? 's' : ''} · Click for details
-                                </div>
-                            </Tooltip>
-                            <Popup maxWidth={320}>
-                                <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                                    <h3 style={{
-                                        fontSize: '15px',
-                                        fontWeight: 700,
-                                        margin: '0 0 12px',
-                                        paddingBottom: '8px',
-                                        borderBottom: '1px solid #eee',
-                                    }}>
-                                        {route.from} ↔ {route.to}
-                                    </h3>
-                                    <div style={{ maxHeight: '250px', overflowY: 'auto' }}>
-                                        {route.flights.map((f, j) => (
-                                            <div key={j} style={{
-                                                display: 'flex',
-                                                justifyContent: 'space-between',
-                                                alignItems: 'center',
-                                                padding: '6px 0',
-                                                borderBottom: j < route.flights.length - 1 ? '1px solid #f0f0f0' : 'none',
-                                                fontSize: '13px',
+                            {j === 0 && (
+                                <>
+                                    <Tooltip sticky>
+                                        <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                                            <strong>{route.from} ↔ {route.to}</strong> · {route.count} spotting{route.count !== 1 ? 's' : ''} · Click for details
+                                        </div>
+                                    </Tooltip>
+                                    <Popup maxWidth={320}>
+                                        <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                                            <h3 style={{
+                                                fontSize: '15px',
+                                                fontWeight: 700,
+                                                margin: '0 0 12px',
+                                                paddingBottom: '8px',
+                                                borderBottom: '1px solid #eee',
                                             }}>
-                                                <div>
-                                                    <span style={{ fontWeight: 600 }}>{f.flightNumber}</span>
-                                                    <span style={{ color: '#888', marginLeft: '8px' }}>{f.airline}</span>
-                                                </div>
-                                                <div style={{ textAlign: 'right' }}>
-                                                    <span style={{ color: '#555' }}>{f.aircraft}</span>
-                                                    <span style={{ color: '#aaa', marginLeft: '8px', fontSize: '12px' }}>{f.registration}</span>
-                                                </div>
+                                                {route.from} ↔ {route.to}
+                                            </h3>
+                                            <div style={{ maxHeight: '250px', overflowY: 'auto' }}>
+                                                {route.flights.map((f, k) => (
+                                                    <div key={k} style={{
+                                                        display: 'flex',
+                                                        justifyContent: 'space-between',
+                                                        alignItems: 'center',
+                                                        padding: '6px 0',
+                                                        borderBottom: k < route.flights.length - 1 ? '1px solid #f0f0f0' : 'none',
+                                                        fontSize: '13px',
+                                                    }}>
+                                                        <div>
+                                                            <span style={{ fontWeight: 600 }}>{f.flightNumber}</span>
+                                                            <span style={{ color: '#888', marginLeft: '8px' }}>{f.airline}</span>
+                                                        </div>
+                                                        <div style={{ textAlign: 'right' }}>
+                                                            <span style={{ color: '#555' }}>{f.aircraft}</span>
+                                                            <span style={{ color: '#aaa', marginLeft: '8px', fontSize: '12px' }}>{f.registration}</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
                                             </div>
-                                        ))}
-                                    </div>
-                                    <p style={{
-                                        fontSize: '11px',
-                                        color: '#888',
-                                        margin: '8px 0 0',
-                                        paddingTop: '8px',
-                                        borderTop: '1px solid #eee',
-                                    }}>
-                                        {route.count} spotting{route.count !== 1 ? 's' : ''} on this route
-                                    </p>
-                                </div>
-                            </Popup>
+                                            <p style={{
+                                                fontSize: '11px',
+                                                color: '#888',
+                                                margin: '8px 0 0',
+                                                paddingTop: '8px',
+                                                borderTop: '1px solid #eee',
+                                            }}>
+                                                {route.count} spotting{route.count !== 1 ? 's' : ''} on this route
+                                            </p>
+                                        </div>
+                                    </Popup>
+                                </>
+                            )}
                         </Polyline>
-                    );
+                    ));
                 })}
 
                 {Object.entries(cities).map(([name, coords]) => {
