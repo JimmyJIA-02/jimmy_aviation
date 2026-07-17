@@ -142,6 +142,7 @@ function RouteMap({ spottings }) {
     const [cities, setCities] = useState({});
     const [popup, setPopup] = useState(null);
     const [dimensions, setDimensions] = useState({ width: 900, height: 420 });
+    const [zoomScale, setZoomScale] = useState(1);
 
     useEffect(() => {
         if (containerRef.current) {
@@ -242,6 +243,7 @@ function RouteMap({ spottings }) {
             .scaleExtent([0.5, 8])
             .on('zoom', (event) => {
                 g.attr('transform', event.transform);
+                setZoomScale(event.transform.k);
             });
 
         svg.call(zoom);
@@ -288,6 +290,7 @@ function RouteMap({ spottings }) {
                                 strokeOpacity={0.5}
                                 strokeLinecap="round"
                                 style={{ cursor: 'pointer' }}
+                                vectorEffect="non-scaling-stroke"
                                 onClick={() => setPopup({ route: r.route })}
                                 onMouseEnter={(e) => {
                                     e.target.setAttribute('stroke-opacity', '0.9');
@@ -308,29 +311,29 @@ function RouteMap({ spottings }) {
                                 <circle
                                     cx={c.x}
                                     cy={c.y}
-                                    r={4}
+                                    r={4 / zoomScale}
                                     fill="#1a1a2e"
                                     stroke="#fff"
-                                    strokeWidth={1.5}
+                                    strokeWidth={1.5 / zoomScale}
                                     onMouseEnter={(e) => {
                                         const label = e.target.nextSibling;
                                         if (label) label.setAttribute('opacity', '1');
-                                        e.target.setAttribute('r', '6');
+                                        e.target.setAttribute('r', 6 / zoomScale);
                                     }}
                                     onMouseLeave={(e) => {
                                         const label = e.target.nextSibling;
                                         if (label) label.setAttribute('opacity', '0');
-                                        e.target.setAttribute('r', '4');
+                                        e.target.setAttribute('r', 4 / zoomScale);
                                     }}
                                 />
                                 <text
                                     x={c.x}
-                                    y={c.y - 12}
+                                    y={c.y - 12 / zoomScale}
                                     textAnchor="middle"
                                     opacity="0"
                                     style={{
                                         fontFamily: "'DM Sans', sans-serif",
-                                        fontSize: '11px',
+                                        fontSize: `${11 / zoomScale}px`,
                                         fill: '#1a1a2e',
                                         fontWeight: 700,
                                         pointerEvents: 'none',
@@ -339,7 +342,7 @@ function RouteMap({ spottings }) {
                                 >
                                     <tspan x={c.x} dy="-2" style={{
                                         stroke: '#fff',
-                                        strokeWidth: 3,
+                                        strokeWidth: 3 / zoomScale,
                                         paintOrder: 'stroke',
                                     }}>{c.name}</tspan>
                                 </text>
