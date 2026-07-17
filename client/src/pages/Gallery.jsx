@@ -241,10 +241,13 @@ function RouteMap({ spottings }) {
             marginBottom: '32px',
         }}>
             <MapContainer
-                center={[-10, 120]}
-                zoom={3}
+                center={[0, 150]}
+                zoom={2}
                 style={{ height: '420px', width: '100%' }}
                 scrollWheelZoom={false}
+                worldCopyJump={true}
+                maxBounds={[[-85, 30], [85, 390]]}
+                maxBoundsViscosity={1.0}
             >
                 <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
