@@ -1,10 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import aboutContent from '../assets/about.md?raw';
-import { MapContainer, TileLayer, Marker, Tooltip, Polyline, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Tooltip } from 'react-leaflet';
 import L from 'leaflet';
+import * as d3 from 'd3';
+import * as topojson from 'topojson-client';
 
 
 import api from '../api/axios';
@@ -134,60 +136,21 @@ async function geocodeCity(cityName) {
     return null;
 }
 
-function computeArc(from, to, numPoints = 50) {
-    const toRad = (deg) => (deg * Math.PI) / 180;
-    const toDeg = (rad) => (rad * 180) / Math.PI;
-
-    const lat1 = toRad(from.lat);
-    const lng1 = toRad(from.lng);
-    const lat2 = toRad(to.lat);
-    const lng2 = toRad(to.lng);
-
-    const d = 2 * Math.asin(
-        Math.sqrt(
-            Math.pow(Math.sin((lat1 - lat2) / 2), 2) +
-            Math.cos(lat1) * Math.cos(lat2) * Math.pow(Math.sin((lng1 - lng2) / 2), 2)
-        )
-    );
-
-    if (d === 0) return [[[from.lat, from.lng], [to.lat, to.lng]]];
-
-    const points = [];
-    for (let i = 0; i <= numPoints; i++) {
-        const f = i / numPoints;
-        const A = Math.sin((1 - f) * d) / Math.sin(d);
-        const B = Math.sin(f * d) / Math.sin(d);
-        const x = A * Math.cos(lat1) * Math.cos(lng1) + B * Math.cos(lat2) * Math.cos(lng2);
-        const y = A * Math.cos(lat1) * Math.sin(lng1) + B * Math.cos(lat2) * Math.sin(lng2);
-        const z = A * Math.sin(lat1) + B * Math.sin(lat2);
-        const lat = toDeg(Math.atan2(z, Math.sqrt(x * x + y * y)));
-        const lng = toDeg(Math.atan2(y, x));
-        points.push([lat, lng]);
-    }
-
-    // Split into segments at antimeridian crossings
-    const segments = [];
-    let currentSegment = [points[0]];
-
-    for (let i = 1; i < points.length; i++) {
-        const prevLng = points[i - 1][1];
-        const currLng = points[i][1];
-
-        if (Math.abs(currLng - prevLng) > 180) {
-            // Crossed the antimeridian — split here
-            segments.push(currentSegment);
-            currentSegment = [];
-        }
-        currentSegment.push(points[i]);
-    }
-    segments.push(currentSegment);
-
-    return segments;
-}
-
 function RouteMap({ spottings }) {
+    const containerRef = useRef(null);
     const [routes, setRoutes] = useState([]);
     const [cities, setCities] = useState({});
+    const [popup, setPopup] = useState(null);
+    const [dimensions, setDimensions] = useState({ width: 900, height: 420 });
+
+    useEffect(() => {
+        if (containerRef.current) {
+            setDimensions({
+                width: containerRef.current.clientWidth,
+                height: 420,
+            });
+        }
+    }, []);
 
     useEffect(() => {
         const resolve = async () => {
@@ -229,127 +192,225 @@ function RouteMap({ spottings }) {
         resolve();
     }, [spottings]);
 
+    const svgContent = useMemo(() => {
+        if (routes.length === 0 || dimensions.width === 0) return null;
+
+        const { width, height } = dimensions;
+
+        const projection = d3.geoNaturalEarth1()
+            .rotate([-150, 0])
+            .fitSize([width, height], { type: 'Sphere' });
+
+        const path = d3.geoPath().projection(projection);
+        const maxCount = Math.max(...routes.map(r => r.count));
+
+        const sphere = path({ type: 'Sphere' });
+        const graticule = path(d3.geoGraticule10());
+
+        const routePaths = routes.map((route, i) => {
+            const line = {
+                type: 'LineString',
+                coordinates: [
+                    [route.fromCoords.lng, route.fromCoords.lat],
+                    [route.toCoords.lng, route.toCoords.lat],
+                ],
+            };
+            const weight = 1.5 + (route.count / maxCount) * 2.5;
+            return {
+                d: path(line),
+                weight,
+                route,
+                index: i,
+            };
+        });
+
+        const cityMarkers = Object.entries(cities).map(([name, coords]) => {
+            const projected = projection([coords.lng, coords.lat]);
+            if (!projected) return null;
+            return { name, x: projected[0], y: projected[1] };
+        }).filter(Boolean);
+
+        return { sphere, graticule, routePaths, cityMarkers };
+    }, [routes, cities, dimensions]);
+
     if (routes.length === 0) return null;
 
-    const maxCount = Math.max(...routes.map(r => r.count));
+    return (
+        <div
+            ref={containerRef}
+            style={{
+                borderRadius: '12px',
+                overflow: 'hidden',
+                border: '1px solid #eee',
+                marginBottom: '32px',
+                position: 'relative',
+            }}
+        >
+            <svg
+                viewBox={`0 0 ${dimensions.width} ${dimensions.height}`}
+                style={{ width: '100%', height: '420px', display: 'block', background: '#e8f0f8' }}
+            >
+                {svgContent && (
+                    <>
+                        {/* Ocean */}
+                        <path d={svgContent.sphere} fill="#e8f0f8" stroke="#ccc" />
+
+                        {/* Graticule */}
+                        <path d={svgContent.graticule} fill="none" stroke="#ddd" strokeWidth={0.3} />
+
+                        {/* Countries — loaded via fetch */}
+                        <CountryPaths dimensions={dimensions} />
+
+                        {/* Routes */}
+                        {svgContent.routePaths.map((r, i) => (
+                            <path
+                                key={i}
+                                d={r.d}
+                                fill="none"
+                                stroke="#1a1a2e"
+                                strokeWidth={r.weight}
+                                strokeOpacity={0.5}
+                                strokeDasharray="6 3"
+                                strokeLinecap="round"
+                                style={{ cursor: 'pointer' }}
+                                onClick={() => setPopup({ route: r.route })}
+                                onMouseEnter={(e) => {
+                                    e.target.setAttribute('stroke-opacity', '0.9');
+                                    e.target.setAttribute('stroke-width', r.weight + 1);
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.target.setAttribute('stroke-opacity', '0.5');
+                                    e.target.setAttribute('stroke-width', r.weight);
+                                }}
+                            >
+                                <title>{r.route.from} ↔ {r.route.to} · {r.route.count} spotting{r.route.count !== 1 ? 's' : ''}</title>
+                            </path>
+                        ))}
+
+                        {/* City dots and labels */}
+                        {svgContent.cityMarkers.map((c) => (
+                            <g key={c.name}>
+                                <circle cx={c.x} cy={c.y} r={4} fill="#1a1a2e" stroke="#fff" strokeWidth={1.5} />
+                                <text
+                                    x={c.x}
+                                    y={c.y - 10}
+                                    textAnchor="middle"
+                                    style={{
+                                        fontFamily: "'DM Sans', sans-serif",
+                                        fontSize: '10px',
+                                        fill: '#555',
+                                        fontWeight: 600,
+                                    }}
+                                >
+                                    {c.name}
+                                </text>
+                            </g>
+                        ))}
+                    </>
+                )}
+            </svg>
+
+            {/* Popup */}
+            {popup && (
+                <>
+                    <div
+                        style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+                        onClick={() => setPopup(null)}
+                    />
+                    <div style={{
+                        position: 'absolute',
+                        top: '50%',
+                        left: '50%',
+                        transform: 'translate(-50%, -50%)',
+                        background: '#fff',
+                        borderRadius: '10px',
+                        border: '1px solid #eee',
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                        padding: '16px',
+                        width: '320px',
+                        zIndex: 1000,
+                        fontFamily: "'DM Sans', sans-serif",
+                    }}>
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: '12px',
+                            paddingBottom: '8px',
+                            borderBottom: '1px solid #eee',
+                        }}>
+                            <h3 style={{ fontSize: '15px', fontWeight: 700, margin: 0 }}>
+                                {popup.route.from} ↔ {popup.route.to}
+                            </h3>
+                            <button
+                                onClick={() => setPopup(null)}
+                                style={{
+                                    background: 'none', border: 'none', cursor: 'pointer',
+                                    fontSize: '16px', color: '#888', padding: '0 4px',
+                                }}
+                            >✕</button>
+                        </div>
+                        <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                            {popup.route.flights.map((f, j) => (
+                                <div key={j} style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    padding: '6px 0',
+                                    borderBottom: j < popup.route.flights.length - 1 ? '1px solid #f0f0f0' : 'none',
+                                    fontSize: '13px',
+                                }}>
+                                    <div>
+                                        <span style={{ fontWeight: 600 }}>{f.flightNumber}</span>
+                                        <span style={{ color: '#888', marginLeft: '8px' }}>{f.airline}</span>
+                                    </div>
+                                    <div style={{ textAlign: 'right' }}>
+                                        <span style={{ color: '#555' }}>{f.aircraft}</span>
+                                        <span style={{ color: '#aaa', marginLeft: '8px', fontSize: '12px' }}>{f.registration}</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <p style={{
+                            fontSize: '11px', color: '#888', margin: '8px 0 0',
+                            paddingTop: '8px', borderTop: '1px solid #eee',
+                        }}>
+                            {popup.route.count} spotting{popup.route.count !== 1 ? 's' : ''} on this route
+                        </p>
+                    </div>
+                </>
+            )}
+        </div>
+    );
+}
+
+function CountryPaths({ dimensions }) {
+    const [paths, setPaths] = useState([]);
+
+    useEffect(() => {
+        const loadCountries = async () => {
+            
+            const res = await fetch('/world-110m.json');
+            const worldData = await res.json();
+            const countries = topojson.feature(worldData, worldData.objects.countries);
+
+            const projection = d3.geoNaturalEarth1()
+                .rotate([-150, 0])
+                .fitSize([dimensions.width, dimensions.height], { type: 'Sphere' });
+
+            const path = d3.geoPath().projection(projection);
+
+            setPaths(countries.features.map(f => path(f)).filter(Boolean));
+        };
+        loadCountries();
+    }, [dimensions]);
 
     return (
-        <div style={{
-            borderRadius: '12px',
-            overflow: 'hidden',
-            border: '1px solid #eee',
-            marginBottom: '32px',
-        }}>
-            <MapContainer
-                center={[0, 150]}
-                zoom={2}
-                style={{ height: '420px', width: '100%' }}
-                scrollWheelZoom={false}
-                worldCopyJump={true}
-                maxBounds={[[-85, 30], [85, 390]]}
-                maxBoundsViscosity={1.0}
-            >
-                <TileLayer
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
-
-                {routes.map((route, i) => {
-                    const segments = computeArc(route.fromCoords, route.toCoords);
-                    const weight = 2 + (route.count / maxCount) * 3;
-
-                    return segments.map((segment, j) => (
-                        <Polyline
-                            key={`${i}-${j}`}
-                            positions={segment}
-                            pathOptions={{
-                                color: '#1a1a2e',
-                                weight: weight,
-                                opacity: 0.6,
-                                dashArray: '6 4',
-                            }}
-                        >
-                            {j === 0 && (
-                                <>
-                                    <Tooltip sticky>
-                                        <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                                            <strong>{route.from} ↔ {route.to}</strong> · {route.count} spotting{route.count !== 1 ? 's' : ''} · Click for details
-                                        </div>
-                                    </Tooltip>
-                                    <Popup maxWidth={320}>
-                                        <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                                            <h3 style={{
-                                                fontSize: '15px',
-                                                fontWeight: 700,
-                                                margin: '0 0 12px',
-                                                paddingBottom: '8px',
-                                                borderBottom: '1px solid #eee',
-                                            }}>
-                                                {route.from} ↔ {route.to}
-                                            </h3>
-                                            <div style={{ maxHeight: '250px', overflowY: 'auto' }}>
-                                                {route.flights.map((f, k) => (
-                                                    <div key={k} style={{
-                                                        display: 'flex',
-                                                        justifyContent: 'space-between',
-                                                        alignItems: 'center',
-                                                        padding: '6px 0',
-                                                        borderBottom: k < route.flights.length - 1 ? '1px solid #f0f0f0' : 'none',
-                                                        fontSize: '13px',
-                                                    }}>
-                                                        <div>
-                                                            <span style={{ fontWeight: 600 }}>{f.flightNumber}</span>
-                                                            <span style={{ color: '#888', marginLeft: '8px' }}>{f.airline}</span>
-                                                        </div>
-                                                        <div style={{ textAlign: 'right' }}>
-                                                            <span style={{ color: '#555' }}>{f.aircraft}</span>
-                                                            <span style={{ color: '#aaa', marginLeft: '8px', fontSize: '12px' }}>{f.registration}</span>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                            <p style={{
-                                                fontSize: '11px',
-                                                color: '#888',
-                                                margin: '8px 0 0',
-                                                paddingTop: '8px',
-                                                borderTop: '1px solid #eee',
-                                            }}>
-                                                {route.count} spotting{route.count !== 1 ? 's' : ''} on this route
-                                            </p>
-                                        </div>
-                                    </Popup>
-                                </>
-                            )}
-                        </Polyline>
-                    ));
-                })}
-
-                {Object.entries(cities).map(([name, coords]) => {
-                    const icon = L.divIcon({
-                        className: '',
-                        html: `<div style="
-                            width: 10px;
-                            height: 10px;
-                            border-radius: 50%;
-                            background: #1a1a2e;
-                            border: 2px solid #fff;
-                            box-shadow: 0 1px 4px rgba(0,0,0,0.3);
-                        "></div>`,
-                        iconSize: [10, 10],
-                        iconAnchor: [5, 5],
-                    });
-
-                    return (
-                        <Marker key={name} position={[coords.lat, coords.lng]} icon={icon}>
-                            <Tooltip direction="top" offset={[0, -8]}>
-                                <strong style={{ fontFamily: "'DM Sans', sans-serif" }}>{name}</strong>
-                            </Tooltip>
-                        </Marker>
-                    );
-                })}
-            </MapContainer>
-        </div>
+        <>
+            {paths.map((d, i) => (
+                <path key={i} d={d} fill="#f0f0f0" stroke="#ddd" strokeWidth={0.5} />
+            ))}
+        </>
     );
 }
 
@@ -602,10 +663,8 @@ export default function Gallery() {
                         fontWeight: 700,
                         color: '#1a1a2e',
                         marginBottom: '16px',
-                        marginTop: '12px',
                         letterSpacing: '-0.3px',
                     }}>Spotting Routes</h2>
-
                     <RouteMap spottings={spottings} />
 
                     <h2 style={{
