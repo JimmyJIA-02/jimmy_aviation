@@ -215,7 +215,7 @@ function RouteMap({ spottings }) {
                     [route.toCoords.lng, route.toCoords.lat],
                 ],
             };
-            const weight = 0.8 + (route.count / maxCount) * 1.2;
+            const weight = 0.5 + (route.count / maxCount) * 0.5;
             return {
                 d: path(line),
                 weight,
@@ -286,7 +286,6 @@ function RouteMap({ spottings }) {
                                 stroke="#1a1a2e"
                                 strokeWidth={r.weight}
                                 strokeOpacity={0.5}
-                                strokeDasharray="6 3"
                                 strokeLinecap="round"
                                 style={{ cursor: 'pointer' }}
                                 onClick={() => setPopup({ route: r.route })}
@@ -305,20 +304,44 @@ function RouteMap({ spottings }) {
 
                         {/* City dots and labels */}
                         {svgContent.cityMarkers.map((c) => (
-                            <g key={c.name}>
-                                <circle cx={c.x} cy={c.y} r={4} fill="#1a1a2e" stroke="#fff" strokeWidth={1.5} />
+                            <g key={c.name} style={{ cursor: 'pointer' }}>
+                                <circle
+                                    cx={c.x}
+                                    cy={c.y}
+                                    r={4}
+                                    fill="#1a1a2e"
+                                    stroke="#fff"
+                                    strokeWidth={1.5}
+                                    onMouseEnter={(e) => {
+                                        const label = e.target.nextSibling;
+                                        if (label) label.setAttribute('opacity', '1');
+                                        e.target.setAttribute('r', '6');
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        const label = e.target.nextSibling;
+                                        if (label) label.setAttribute('opacity', '0');
+                                        e.target.setAttribute('r', '4');
+                                    }}
+                                />
                                 <text
                                     x={c.x}
-                                    y={c.y - 10}
+                                    y={c.y - 12}
                                     textAnchor="middle"
+                                    opacity="0"
                                     style={{
                                         fontFamily: "'DM Sans', sans-serif",
-                                        fontSize: '10px',
-                                        fill: '#555',
-                                        fontWeight: 600,
+                                        fontSize: '11px',
+                                        fill: '#1a1a2e',
+                                        fontWeight: 700,
+                                        pointerEvents: 'none',
+                                        transition: 'opacity 0.15s',
                                     }}
                                 >
-                                    {c.name}
+                                    <tspan x={c.x} dy="-2" style={{
+                                        stroke: '#fff',
+                                        strokeWidth: 3,
+                                        paintOrder: 'stroke',
+                                    }}>{c.name}</tspan>
                                 </text>
                             </g>
                         ))}
