@@ -11,7 +11,7 @@ import api from '../api/axios';
 
 const TABS = [
     { key: 'gallery', label: 'GALLERY' },
-    { key: 'calendar', label: 'SPOTTING CALENDAR' },
+    { key: 'logbook', label: 'LOGBOOK' },
     { key: 'about', label: 'ABOUT ME' },
 ];
 
@@ -103,12 +103,22 @@ export default function Gallery() {
     const [search, setSearch] = useState('');
     const [showFilter, setShowFilter] = useState(false);
     const [selectedMonth, setSelectedMonth] = useState(null);
+    const [selectedYear, setSelectedYear] = useState(null);
     const [filters, setFilters] = useState({ aircraft: '', airport: '' });
     const [calendarCollapsed, setCalendarCollapsed] = useState(false);
     const [likedIds, setLikedIds] = useState(new Set());
     const filterRef = useRef(null);
     const [stats, setStats] = useState(null);
     const [selectedSpottings, setSelectedSpottings] = useState([]);
+    const [showBackToTop, setShowBackToTop] = useState(false);
+
+    useEffect(() => {
+        const handleScroll = () => {
+            setShowBackToTop(window.scrollY > 200);
+        };
+        window.addEventListener('scroll', handleScroll);
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
 
     useEffect(() => {
         const handleClickOutside = (e) => {
@@ -160,7 +170,7 @@ export default function Gallery() {
         return months;
     };
 
-    const aircraft = stats?.filters?.aircraft ? [...stats.filters.aircraft] : [];
+    const aircraft = stats?.filters?.aircraft ? [...new Map(stats.filters.aircraft.map(a => [a.icaoCode, a])).values()] : [];
     const airports = stats?.filters?.airports ? [...stats.filters.airports] : [];
 
     const handleLike = async (id) => {
@@ -185,7 +195,7 @@ export default function Gallery() {
 
     const filtered = spottings
         .filter(s => {
-            if (filters.aircraft && s.aircraft?.id !== filters.aircraft) return false;
+            if (filters.aircraft && s.aircraft?.icaoCode !== filters.aircraft) return false;
             if (filters.airport && s.spotLocation?.id !== filters.airport) return false;
             return true;
         })
@@ -298,7 +308,7 @@ export default function Gallery() {
         );
     }
 
-    if (activeTab === 'calendar') {
+    if (activeTab === 'logbook') {
         const monthGroups = getMonthGroups();
         const months = getMonthRange();
         const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -309,15 +319,37 @@ export default function Gallery() {
             yearGroups[m.year].push(m);
         });
 
+        // Count total spottings per year
+        const yearCounts = {};
+        Object.entries(yearGroups).forEach(([year, yearMonths]) => {
+            yearCounts[year] = yearMonths.reduce((sum, m) => sum + (monthGroups[m.key] || 0), 0);
+        });
+
         return (
             <div style={{ minHeight: '100vh', fontFamily: "'DM Sans', sans-serif", background: '#fff' }}>
                 <NavBar activeTab={activeTab} setActiveTab={setActiveTab} />
 
                 <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '40px 24px' }}>
+                    <h2 style={{
+                        fontSize: '18px',
+                        fontWeight: 700,
+                        color: '#1a1a2e',
+                        marginBottom: '16px',
+                        letterSpacing: '-0.3px',
+                    }}>Spotting Locations</h2>
 
                     <SpottingMap locations={getLocationCounts()} />
 
-                    {/* Collapsed bar */}
+                    <h2 style={{
+                        fontSize: '18px',
+                        fontWeight: 700,
+                        color: '#1a1a2e',
+                        marginBottom: '16px',
+                        marginTop: '12px',
+                        letterSpacing: '-0.3px',
+                    }}>Spotting Timeline</h2>
+
+                    {/* Collapsed bar — shown when a month is selected */}
                     {calendarCollapsed && selectedMonth && (
                         <div
                             onClick={() => {
@@ -344,39 +376,138 @@ export default function Gallery() {
                                 </span>
                             </span>
                             <span style={{ color: 'rgb(255, 255, 255)', fontSize: '13px' }}>
-                                ▼ Show calendar
+                                ▼ Show months
                             </span>
                         </div>
                     )}
 
-                    {/* Full calendar */}
+                    {/* Calendar content — hidden when month is selected */}
                     <div style={{
                         maxHeight: calendarCollapsed ? '0px' : '2000px',
                         overflow: 'hidden',
                         transition: 'max-height 0.5s ease, opacity 0.3s ease',
                         opacity: calendarCollapsed ? 0 : 1,
                     }}>
-                        {Object.entries(yearGroups).sort(([a], [b]) => b - a).map(([year, yearMonths]) => (
-                            <div key={year} style={{ marginBottom: '36px' }}>
-                                <h3 style={{
-                                    fontSize: '25px',
-                                    fontWeight: 700,
-                                    color: '#1a1a2e',
-                                    marginBottom: '20px',
-                                    paddingBottom: '8px',
+
+                        {/* Level 1 — Year circles (no year selected) */}
+                        {!selectedYear && (
+                            <>
+                                <div style={{
+                                    display: 'flex',
+                                    justifyContent: 'center',
+                                    gap: '40px',
+                                    flexWrap: 'wrap',
+                                    marginBottom: '24px',
+                                }}>
+                                    {Object.entries(yearGroups).sort(([a], [b]) => b - a).map(([year]) => {
+                                        const count = yearCounts[year] || 0;
+                                        const hasSpottings = count > 0;
+
+                                        return (
+                                            <div
+                                                key={year}
+                                                onClick={() => {
+                                                    if (hasSpottings) setSelectedYear(year);
+                                                }}
+                                                style={{
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    alignItems: 'center',
+                                                    gap: '10px',
+                                                    cursor: hasSpottings ? 'pointer' : 'default',
+                                                    opacity: hasSpottings ? 1 : 0.4,
+                                                    padding: '12px',
+                                                }}
+                                            >
+                                                <div style={{
+                                                    width: '88px',
+                                                    height: '88px',
+                                                    borderRadius: '50%',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    background: hasSpottings ? '#f8f8fa' : '#fafafa',
+                                                    border: '1.5px solid #eee',
+                                                    transition: 'all 0.2s',
+                                                }}>
+                                                    <span style={{
+                                                        fontSize: '22px',
+                                                        fontWeight: 700,
+                                                        color: hasSpottings ? '#1a1a1a' : '#ccc',
+                                                    }}>
+                                                        {count}
+                                                    </span>
+                                                </div>
+                                                <span style={{
+                                                    fontSize: '16px',
+                                                    fontWeight: 700,
+                                                    color: '#1a1a2e',
+                                                }}>
+                                                    {year} {getLunarAnimal(Number(year))}
+                                                </span>
+                                                {hasSpottings && (
+                                                    <span style={{ fontSize: '14px', marginTop: '-6px' }}>✈️</span>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                <p style={{ textAlign: 'center', color: '#888', fontSize: '14px' }}>
+                                    Click a year to explore
+                                </p>
+                            </>
+                        )}
+
+                        {/* Level 2 — Month circles (year selected) */}
+                        {selectedYear && (
+                            <>
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '12px',
+                                    marginBottom: '24px',
+                                    paddingBottom: '12px',
                                     borderBottom: '2px solid #eee',
-                                }}>{year}
-                                    <span style={{ fontWeight: 400, marginLeft: '10px' }}>
-                                        {getLunarAnimal(Number(year))}
-                                    </span>
-                                </h3>
+                                }}>
+                                    <button
+                                        onClick={() => setSelectedYear(null)}
+                                        style={{
+                                            background: 'none',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            fontSize: '18px',
+                                            color: '#888',
+                                            padding: '4px 8px',
+                                            borderRadius: '6px',
+                                            transition: 'background 0.15s',
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = '#f0f0f0'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                                    >
+                                        ←
+                                    </button>
+                                    <h3 style={{
+                                        fontSize: '25px',
+                                        fontWeight: 700,
+                                        color: '#1a1a2e',
+                                        margin: 0,
+                                    }}>
+                                        {selectedYear}
+                                        <span style={{ fontWeight: 400, marginLeft: '10px' }}>
+                                            {getLunarAnimal(Number(selectedYear))}
+                                        </span>
+                                        <span style={{ fontSize: '14px', fontWeight: 400, color: '#888', marginLeft: '12px' }}>
+                                            {yearCounts[selectedYear] || 0} spottings
+                                        </span>
+                                    </h3>
+                                </div>
 
                                 <div style={{
                                     display: 'grid',
-                                    gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+                                    gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
                                     gap: '20px',
                                 }}>
-                                    {[...yearMonths].reverse().map(({ key, month }) => {
+                                    {[...(yearGroups[selectedYear] || [])].reverse().map(({ key, month }) => {
                                         const count = monthGroups[key] || 0;
                                         const hasSpottings = count > 0;
                                         const isSelected = selectedMonth === key;
@@ -447,17 +578,17 @@ export default function Gallery() {
                                         );
                                     })}
                                 </div>
-                            </div>
-                        ))}
 
-                        {!selectedMonth && (
-                            <p style={{ textAlign: 'center', color: '#888', fontSize: '14px' }}>
-                                Click a month to see spottings
-                            </p>
+                                {!selectedMonth && (
+                                    <p style={{ textAlign: 'center', color: '#888', fontSize: '14px', marginTop: '20px' }}>
+                                        Click a month to see spottings
+                                    </p>
+                                )}
+                            </>
                         )}
                     </div>
 
-                    {/* Selected month spottings */}
+                    {/* Level 3 — Selected month spottings */}
                     {selectedMonth && (
                         <div style={{ marginTop: '20px' }}>
                             <h3 style={{
@@ -564,16 +695,16 @@ export default function Gallery() {
                                     {aircraft.map(a => (
                                         <button
                                             key={a.id}
-                                            onClick={() => setFilters({ ...filters, aircraft: a.id })}
+                                            onClick={() => setFilters({ ...filters, aircraft: a.icaoCode })}
                                             style={{
                                                 padding: '6px 14px',
                                                 borderRadius: '20px',
                                                 fontSize: '13px',
                                                 fontWeight: 600,
                                                 cursor: 'pointer',
-                                                border: filters.aircraft === a.id ? '2px solid #1a1a2e' : '1px solid #ddd',
-                                                background: filters.aircraft === a.id ? '#1a1a2e' : '#fff',
-                                                color: filters.aircraft === a.id ? '#fff' : '#333',
+                                                border: filters.aircraft === a.icaoCode ? '2px solid #1a1a2e' : '1px solid #ddd',
+                                                background: filters.aircraft === a.icaoCode ? '#1a1a2e' : '#fff',
+                                                color: filters.aircraft === a.icaoCode ? '#fff' : '#333',
                                                 transition: 'all 0.15s',
                                             }}
                                         >{a.icaoCode}</button>
@@ -677,6 +808,32 @@ export default function Gallery() {
                 )}
             </div>
 
+            {showBackToTop && (
+                <button
+                    onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                    style={{
+                        position: 'fixed',
+                        bottom: '32px',
+                        right: '32px',
+                        width: '44px',
+                        height: '44px',
+                        borderRadius: '50%',
+                        background: '#1a1a2e',
+                        color: '#fff',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '20px',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'opacity 0.3s',
+                        zIndex: 50,
+                    }}
+                >
+                    ↑
+                </button>
+            )}
 
             <footer style={{
                 textAlign: 'center',
@@ -747,7 +904,7 @@ function SpottingCard({ spotting, onLike, getPhotoUrl }) {
             {/* Photo */}
             <div style={{
                 width: '100%',
-                aspectRatio: '4 / 3',
+                aspectRatio: '16 / 9',
                 background: '#f0f0f0',
                 overflow: 'hidden',
             }}>

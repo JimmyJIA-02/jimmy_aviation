@@ -4,7 +4,7 @@ import api from '../api/axios';
 
 const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789- '.split('');
 
-function SplitFlapChar({ targetChar, delay }) {
+function SplitFlapChar({ targetChar, delay, small }) {
     const [currentChar, setCurrentChar] = useState(' ');
     const [flipping, setFlipping] = useState(false);
     const hasAnimated = useRef(false);
@@ -45,8 +45,8 @@ function SplitFlapChar({ targetChar, delay }) {
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: '20px',
-            height: '28px',
+            width: small ? '16px' : '20px',
+            height: small ? '22px' : '28px',
             background: '#1a1a1a',
             borderRadius: '3px',
             margin: '0 1px',
@@ -65,7 +65,7 @@ function SplitFlapChar({ targetChar, delay }) {
             }} />
             <span style={{
                 color: '#f0e060',
-                fontSize: '15px',
+                fontSize: small ? '12px' : '15px',
                 fontWeight: 700,
                 fontFamily: "'Courier New', monospace",
                 transform: flipping ? 'perspective(200px) rotateX(90deg)' : 'perspective(200px) rotateX(0deg)',
@@ -78,31 +78,43 @@ function SplitFlapChar({ targetChar, delay }) {
     );
 }
 
-function SplitFlapRow({ label, value, maxLen = 16 }) {
+function SplitFlapRow({ label, value, maxLen = 16, small }) {
     const text = (value || '—').toUpperCase().padEnd(maxLen, ' ').slice(0, maxLen);
 
     return (
         <div>
             <p style={{
-                fontSize: '11px',
+                fontSize: small ? '9px' : '11px',
                 fontWeight: 600,
                 color: '#888',
                 textTransform: 'uppercase',
                 letterSpacing: '1.5px',
-                marginBottom: '6px',
+                marginBottom: small ? '4px' : '6px',
                 textAlign: 'left',
                 width: '100%',
             }}>{label}</p>
             <div style={{
                 display: 'flex',
-                justifyContent: 'center',
+                justifyContent: small ? 'flex-start' : 'center',
             }}>
                 {text.split('').map((char, i) => (
-                    <SplitFlapChar key={i} targetChar={char} delay={i * 80 + Math.random() * 150} />
+                    <SplitFlapChar key={i} targetChar={char} delay={i * 80 + Math.random() * 150} small={small} />
                 ))}
             </div>
         </div>
     );
+}
+
+function useIsMobile() {
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
+
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth < 640);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    return isMobile;
 }
 
 export default function SpottingDetail() {
@@ -111,6 +123,7 @@ export default function SpottingDetail() {
     const [spotting, setSpotting] = useState(null);
     const [loading, setLoading] = useState(true);
     const [liked, setLiked] = useState(false);
+    const isMobile = useIsMobile();
 
     useEffect(() => {
         api.get(`/spotting/${id}`)
@@ -149,7 +162,7 @@ export default function SpottingDetail() {
         <div style={{ minHeight: '100vh', fontFamily: "'DM Sans', sans-serif", background: '#fff' }}>
             {/* Top bar */}
             <div style={{
-                padding: '20px 40px',
+                padding: isMobile ? '14px 16px' : '20px 40px',
                 borderBottom: '1px solid #eee',
                 display: 'flex',
                 alignItems: 'center',
@@ -159,14 +172,14 @@ export default function SpottingDetail() {
                     onClick={() => navigate('/')}
                     style={{
                         background: 'none', border: 'none', cursor: 'pointer',
-                        fontSize: '15px', color: '#333', fontWeight: 500,
+                        fontSize: isMobile ? '14px' : '15px', color: '#333', fontWeight: 500,
                         display: 'flex', alignItems: 'center', gap: '8px',
                         fontFamily: "'DM Sans', sans-serif",
                     }}
                 >
-                    ← Back to Gallery
+                    ← Back
                 </button>
-                <span style={{ fontSize: '13px', color: '#888' }}>
+                <span style={{ fontSize: isMobile ? '12px' : '13px', color: '#888' }}>
                     Spotted on {spotting.spotDate || ''}
                 </span>
             </div>
@@ -175,15 +188,15 @@ export default function SpottingDetail() {
             <div style={{
                 maxWidth: '1000px',
                 margin: '0 auto',
-                padding: '40px 24px',
+                padding: isMobile ? '16px' : '40px 24px',
             }}>
                 {/* Photo */}
                 {photoUrl && (
                     <div style={{
                         width: '100%',
-                        borderRadius: '12px',
+                        borderRadius: isMobile ? '8px' : '12px',
                         overflow: 'hidden',
-                        marginBottom: '32px',
+                        marginBottom: isMobile ? '16px' : '32px',
                         background: '#f0f0f0',
                     }}>
                         <img
@@ -193,7 +206,7 @@ export default function SpottingDetail() {
                                 width: '100%',
                                 display: 'block',
                                 objectFit: 'contain',
-                                maxHeight: '600px',
+                                maxHeight: isMobile ? '280px' : '600px',
                                 userSelect: 'none',
                                 WebkitUserSelect: 'none',
                                 pointerEvents: 'auto',
@@ -205,113 +218,149 @@ export default function SpottingDetail() {
                 )}
 
                 {/* Info section */}
-                <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    marginBottom: '16px',
-                    flexWrap: 'wrap',
-                    gap: '16px',
-                }}>
-                    {/* Left column */}
-                    <div>
-                        <h1 style={{
-                            fontSize: '28px', fontWeight: 700,
-                            letterSpacing: '-0.5px', margin: '0 0 6px',
-                        }}>
-                            {spotting.registration || '—'}
-                        </h1>
-                        <p style={{ fontSize: '18px', color: '#555', margin: '0 0 4px' }}>
-                            {spotting.airline?.airlineName || '—'}
-                        </p>
-                        <p style={{ fontSize: '15px', color: '#888', margin: 0 }}>
-                            {spotting.aircraft?.icaoCode || ''} · {spotting.aircraft?.typeName || '—'}
-                        </p>
-                    </div>
-
-                    {/* Right column */}
-                    <div style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'flex-end',
-                    }}>
-                        <button
-                            onClick={handleLike}
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: '8px',
-                                padding: '8px 18px',
-                                background: liked ? '#1a1a2e' : '#f8f8fa',
-                                border: '1px solid #eee',
-                                borderRadius: '24px',
-                                cursor: liked ? 'default' : 'pointer',
-                                fontSize: '15px',
-                                fontWeight: 600,
-                                color: liked ? '#fff' : '#333',
-                                transition: 'all 0.15s',
-                                fontFamily: "'DM Sans', sans-serif",
+                <div style={{ marginBottom: '16px' }}>
+                    {isMobile ? (
+                        <>
+                            <div style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
                                 marginBottom: '6px',
-                            }}
-                        >
-                            👍 {spotting.likes || 0}
-                        </button>
-                        <p style={{ fontSize: '15px', color: '#555', margin: '0 0 4px', textAlign: 'right' }}>
-                            📍 {spotting.spotLocation?.airportName || '—'}
-                            {spotting.spotLocation?.iataCode && ` (${spotting.spotLocation.iataCode})`}
-                        </p>
-                        <p style={{ fontSize: '15px', color: '#999', margin: 0, textAlign: 'right' }}>
-                            {spotting.notes || '—'}
-                        </p>
-                    </div>
+                            }}>
+                                <h1 style={{
+                                    fontSize: '22px', fontWeight: 700,
+                                    letterSpacing: '-0.5px', margin: 0,
+                                }}>
+                                    {spotting.registration || '—'}
+                                </h1>
+                                <button
+                                    onClick={handleLike}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: '8px',
+                                        padding: '8px 18px',
+                                        background: liked ? '#1a1a2e' : '#f8f8fa',
+                                        border: '1px solid #eee',
+                                        borderRadius: '24px',
+                                        cursor: liked ? 'default' : 'pointer',
+                                        fontSize: '15px',
+                                        fontWeight: 600,
+                                        color: liked ? '#fff' : '#333',
+                                        transition: 'all 0.15s',
+                                        fontFamily: "'DM Sans', sans-serif",
+                                    }}
+                                >
+                                    👍 {spotting.likes || 0}
+                                </button>
+                            </div>
+                            <p style={{ fontSize: '16px', color: '#555', margin: '0 0 2px' }}>
+                                {spotting.airline?.airlineName || '—'}
+                            </p>
+                            <p style={{ fontSize: '13px', color: '#888', margin: '0 0 6px' }}>
+                                {spotting.aircraft?.icaoCode || ''} · {spotting.aircraft?.typeName || '—'}
+                            </p>
+                            <p style={{ fontSize: '13px', color: '#555', margin: '0 0 4px' }}>
+                                📍 {spotting.spotLocation?.airportName || '—'}
+                                {spotting.spotLocation?.iataCode && ` (${spotting.spotLocation.iataCode})`}
+                            </p>
+                            <p style={{ fontSize: '12px', color: '#999', margin: 0 }}>
+                                {spotting.notes || '—'}
+                            </p>
+                        </>
+                    ) : (
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            gap: '16px',
+                        }}>
+                            <div>
+                                <h1 style={{
+                                    fontSize: '28px', fontWeight: 700,
+                                    letterSpacing: '-0.5px', margin: '0 0 6px',
+                                }}>
+                                    {spotting.registration || '—'}
+                                </h1>
+                                <p style={{ fontSize: '18px', color: '#555', margin: '0 0 4px' }}>
+                                    {spotting.airline?.airlineName || '—'}
+                                </p>
+                                <p style={{ fontSize: '15px', color: '#888', margin: 0 }}>
+                                    {spotting.aircraft?.icaoCode || ''} · {spotting.aircraft?.typeName || '—'}
+                                </p>
+                            </div>
+                            <div style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'flex-end',
+                            }}>
+                                <button
+                                    onClick={handleLike}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: '8px',
+                                        padding: '8px 18px',
+                                        background: liked ? '#1a1a2e' : '#f8f8fa',
+                                        border: '1px solid #eee',
+                                        borderRadius: '24px',
+                                        cursor: liked ? 'default' : 'pointer',
+                                        fontSize: '15px',
+                                        fontWeight: 600,
+                                        color: liked ? '#fff' : '#333',
+                                        transition: 'all 0.15s',
+                                        fontFamily: "'DM Sans', sans-serif",
+                                        marginBottom: '6px',
+                                    }}
+                                >
+                                    👍 {spotting.likes || 0}
+                                </button>
+                                <p style={{ fontSize: '15px', color: '#555', margin: '0 0 4px', textAlign: 'right' }}>
+                                    📍 {spotting.spotLocation?.airportName || '—'}
+                                    {spotting.spotLocation?.iataCode && ` (${spotting.spotLocation.iataCode})`}
+                                </p>
+                                <p style={{ fontSize: '15px', color: '#999', margin: 0, textAlign: 'right' }}>
+                                    {spotting.notes || '—'}
+                                </p>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Split-flap display */}
                 <div style={{
                     display: 'flex',
+                    flexDirection: isMobile ? 'column' : 'row',
                     justifyContent: 'space-between',
+                    gap: isMobile ? '10px' : '0px',
                     marginBottom: '16px',
                 }}>
                     <div style={{
                         background: '#0a0a0a',
                         borderRadius: '10px',
-                        padding: '14px 18px',
+                        padding: isMobile ? '10px 14px' : '14px 18px',
                         boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
                         border: '1px solid #222',
                     }}>
-                        <SplitFlapRow label="Flight" value={spotting.flight?.flightNumber} maxLen={6} />
+                        <SplitFlapRow label="Flight" value={spotting.flight?.flightNumber} maxLen={6} small={isMobile} />
                     </div>
 
                     <div style={{
                         background: '#0a0a0a',
                         borderRadius: '10px',
-                        padding: '14px 18px',
+                        padding: isMobile ? '10px 14px' : '14px 18px',
                         boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
                         border: '1px solid #222',
                     }}>
-                        <SplitFlapRow label="From" value={spotting.flight?.departureAirport} maxLen={12} />
+                        <SplitFlapRow label="From" value={spotting.flight?.departureAirport} maxLen={12} small={isMobile} />
                     </div>
 
                     <div style={{
                         background: '#0a0a0a',
                         borderRadius: '10px',
-                        padding: '14px 18px',
+                        padding: isMobile ? '10px 14px' : '14px 18px',
                         boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
                         border: '1px solid #222',
                     }}>
-                        <SplitFlapRow label="To" value={spotting.flight?.arrivalAirport} maxLen={12} />
+                        <SplitFlapRow label="To" value={spotting.flight?.arrivalAirport} maxLen={12} small={isMobile} />
                     </div>
                 </div>
             </div>
-            <footer style={{
-                textAlign: 'center',
-                padding: '48px 24px 32px',
-                color: '#bbb',
-                fontSize: '13px',
-                fontFamily: "'DM Sans', sans-serif",
-                borderTop: '1px solid #f0f0f0',
-                marginTop: '48px',
-            }}>
-                <p style={{ marginBottom: '4px' }}>© {new Date().getFullYear()} Jimmy's Aviation · Melbourne, Australia</p>
-                <p>COYG!</p>
-            </footer>
         </div>
     );
 }
