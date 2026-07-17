@@ -215,7 +215,7 @@ function RouteMap({ spottings }) {
                     [route.toCoords.lng, route.toCoords.lat],
                 ],
             };
-            const weight = 1.5 + (route.count / maxCount) * 2.5;
+            const weight = 0.8 + (route.count / maxCount) * 1.2;
             return {
                 d: path(line),
                 weight,
@@ -232,6 +232,22 @@ function RouteMap({ spottings }) {
 
         return { sphere, graticule, routePaths, cityMarkers };
     }, [routes, cities, dimensions]);
+
+    useEffect(() => {
+        if (!containerRef.current) return;
+        const svg = d3.select(containerRef.current).select('svg');
+        const g = svg.select('g.zoomable');
+
+        const zoom = d3.zoom()
+            .scaleExtent([0.5, 8])
+            .on('zoom', (event) => {
+                g.attr('transform', event.transform);
+            });
+
+        svg.call(zoom);
+
+        return () => svg.on('.zoom', null);
+    }, [svgContent]);
 
     if (routes.length === 0) return null;
 
@@ -251,7 +267,7 @@ function RouteMap({ spottings }) {
                 style={{ width: '100%', height: '420px', display: 'block', background: '#e8f0f8' }}
             >
                 {svgContent && (
-                    <>
+                    <g className="zoomable">
                         {/* Ocean */}
                         <path d={svgContent.sphere} fill="#e8f0f8" stroke="#ccc" />
 
@@ -276,7 +292,7 @@ function RouteMap({ spottings }) {
                                 onClick={() => setPopup({ route: r.route })}
                                 onMouseEnter={(e) => {
                                     e.target.setAttribute('stroke-opacity', '0.9');
-                                    e.target.setAttribute('stroke-width', r.weight + 1);
+                                    e.target.setAttribute('stroke-width', r.weight + 0.5);
                                 }}
                                 onMouseLeave={(e) => {
                                     e.target.setAttribute('stroke-opacity', '0.5');
@@ -306,7 +322,7 @@ function RouteMap({ spottings }) {
                                 </text>
                             </g>
                         ))}
-                    </>
+                    </g>
                 )}
             </svg>
 
@@ -389,7 +405,7 @@ function CountryPaths({ dimensions }) {
 
     useEffect(() => {
         const loadCountries = async () => {
-            
+
             const res = await fetch('/world-110m.json');
             const worldData = await res.json();
             const countries = topojson.feature(worldData, worldData.objects.countries);
