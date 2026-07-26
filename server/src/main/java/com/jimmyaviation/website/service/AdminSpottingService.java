@@ -33,8 +33,8 @@ public class AdminSpottingService {
             String airlineIcao,
             String airlineName,
             String flightNumber,
-            String departureCity,
-            String arrivalCity,
+            String departureAirport,
+            String arrivalAirport,
             String spotLocationIata,
             String spotLocationName,
             String spotLocationCity,
@@ -43,7 +43,7 @@ public class AdminSpottingService {
         Airline airline = findOrCreateAirline(airlineIcao, airlineName);
         Airport spotLocation = findOrCreateAirport(spotLocationIata, spotLocationName, spotLocationCity,
                 spotLocationCountry);
-        Flight flight = findOrCreateFlight(flightNumber, departureCity, arrivalCity);
+        Flight flight = findOrCreateFlight(flightNumber, departureAirport, arrivalAirport);
 
         Spotting spotting = new Spotting();
         spotting.setRegistration(registration);
@@ -160,8 +160,8 @@ public class AdminSpottingService {
         if (updates.containsKey("flightNumber")) {
             spotting.setFlight(findOrCreateFlight(
                     updates.get("flightNumber"),
-                    updates.get("departureCity"),
-                    updates.get("arrivalCity")));
+                    updates.get("departureAirport"),
+                    updates.get("arrivalAirport")));
         }
 
         return spottingRepository.save(spotting);
