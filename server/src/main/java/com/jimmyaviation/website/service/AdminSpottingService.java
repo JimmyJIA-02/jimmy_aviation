@@ -131,12 +131,6 @@ public class AdminSpottingService {
         if (updates.containsKey("photoUrl")) {
             spotting.setPhotoUrl(updates.get("photoUrl"));
         }
-        if (updates.containsKey("thumbnailUrl")) {
-            spotting.setThumbnailUrl(updates.get("thumbnailUrl"));
-        }
-        if (updates.containsKey("spotDate")) {
-            spotting.setSpotDate(LocalDate.parse(updates.get("spotDate")));
-        }
         if (updates.containsKey("notes")) {
             spotting.setNotes(updates.get("notes"));
         }
@@ -158,10 +152,16 @@ public class AdminSpottingService {
                     updates.get("spotLocationCountry")));
         }
         if (updates.containsKey("flightNumber")) {
-            spotting.setFlight(findOrCreateFlight(
+            Flight flight = findOrCreateFlight(
                     updates.get("flightNumber"),
                     updates.get("departureAirport"),
-                    updates.get("arrivalAirport")));
+                    updates.get("arrivalAirport"));
+
+            flight.setDepartureAirport(updates.get("departureAirport"));
+            flight.setArrivalAirport(updates.get("arrivalAirport"));
+
+            flightRepository.save(flight);
+            spotting.setFlight(flight);
         }
 
         return spottingRepository.save(spotting);
