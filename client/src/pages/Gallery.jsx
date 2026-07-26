@@ -19,6 +19,10 @@ const TABS = [
 
 const coordsCache = {};
 
+const KNOWN_AIRPORTS = {
+    'Ho Chi Minh City': { lat: 10.819, lng: 106.652 }
+};
+
 const LUNAR_ANIMALS = ['🐉', '🐍', '🐎', '🐑', '🐒', '🐓', '🐕', '🐖', '🐀', '🐂', '🐅', '🐇'];
 
 const getLunarAnimal = (year) => LUNAR_ANIMALS[(year - 2024) % 12];
@@ -107,6 +111,8 @@ function SpottingMap({ locations }) {
 }
 
 async function geocodeCity(cityName) {
+    if (KNOWN_AIRPORTS[cityName]) return KNOWN_AIRPORTS[cityName];
+
     if (coordsCache[cityName]) return coordsCache[cityName];
 
     // Check localStorage cache
