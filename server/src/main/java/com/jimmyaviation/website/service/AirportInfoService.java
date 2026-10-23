@@ -2,10 +2,12 @@ package com.jimmyaviation.website.service;
 
 import com.jimmyaviation.website.dto.AeroDataBoxAirport;
 import com.jimmyaviation.website.dto.AirportInfo;
+import com.jimmyaviation.website.dto.AirportInfo.LocalName;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -22,7 +24,9 @@ public class AirportInfoService {
     private final AeroDataBoxService aeroDataBoxService;
     private final WikidataService wikidataService;
 
-    private final Map<String, Optional<AirportInfo>> cache = new ConcurrentHashMap<>();
+    private final Map<String, Optional<AeroDataBoxAirport>> airports = new ConcurrentHashMap<>();
+    // by ICAO; only successful lookups are kept, so a busy Wikidata is retried on the next request
+    private final Map<String, List<LocalName>> localNames = new ConcurrentHashMap<>();
 
     public static boolean isIataCode(String value) {
         return value != null && value.matches("[A-Z]{3}");
@@ -37,15 +41,12 @@ public class AirportInfoService {
             return Optional.empty();
         }
 
-        Optional<AirportInfo> cached = cache.get(iataCode);
-        if (cached != null) {
-            return cached;
+        Optional<AeroDataBoxAirport> airport = airports.get(iataCode);
+        if (airport == null) {
+            airport = Optional.ofNullable(aeroDataBoxService.lookupAirport(iataCode));
+            airports.put(iataCode, airport);
         }
-
-        AeroDataBoxAirport airport = aeroDataBoxService.lookupAirport(iataCode);
-        Optional<AirportInfo> info = Optional.ofNullable(airport).map(this::toInfo);
-        cache.put(iataCode, info);
-        return info;
+        return airport.map(this::toInfo);
     }
 
     private AirportInfo toInfo(AeroDataBoxAirport a) {
@@ -59,6 +60,19 @@ public class AirportInfoService {
                 a.country() != null ? a.country().name() : null,
                 a.location() != null ? a.location().lat() : null,
                 a.location() != null ? a.location().lon() : null,
-                wikidataService.localNames(a.icao(), city));
+                localNamesFor(a.icao(), city));
+    }
+
+    private List<LocalName> localNamesFor(String icaoCode, String city) {
+        if (icaoCode == null) {
+            return List.of();
+        }
+        List<LocalName> cached = localNames.get(icaoCode);
+        if (cached != null) {
+            return cached;
+        }
+        Optional<List<LocalName>> names = wikidataService.localNames(icaoCode, city);
+        names.ifPresent(found -> localNames.put(icaoCode, found));
+        return names.orElse(List.of());
     }
 }

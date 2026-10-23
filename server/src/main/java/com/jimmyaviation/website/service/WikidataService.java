@@ -14,10 +14,12 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -33,10 +35,13 @@ public class WikidataService {
 
     // airport (by ICAO, P239) -> country's official languages (P37) -> the airport's labels in that
     // language and its variants (zh-cn -> zh, zh-hans, ...), plus the same for the city it serves (P931)
-    // as a fallback when the airport has none
+    // as a fallback when the airport has none.
+    // ?civil and ?links pick the right item when several share the code (SGN's civil airport and the
+    // old Tan Son Nhut Air Base are both VVTS)
     private static final String QUERY = """
-            SELECT ?lang ?kind ?labelLang ?label ?cityEn WHERE {
-              ?airport wdt:P239 "%s" ; wdt:P17 ?country .
+            SELECT ?airport ?civil ?links ?lang ?kind ?labelLang ?label ?cityEn WHERE {
+              ?airport wdt:P239 "%s" ; wdt:P17 ?country ; wikibase:sitelinks ?links .
+              BIND(EXISTS { ?airport wdt:P31/wdt:P279* wd:Q1248784 } AS ?civil)
               ?country wdt:P37 ?langItem . ?langItem wdt:P424 ?lang .
               BIND(STRBEFORE(CONCAT(?lang, "-"), "-") AS ?base)
               {
@@ -91,11 +96,12 @@ public class WikidataService {
      * @param englishCity City the airport serves, as AeroDataBox names it (e.g. "Beijing").
      *                    A city label is only used as fallback when its English name matches,
      *                    so metro areas or neighbouring cities don't sneak in.
-     * @return up to 3 non-English names, e.g. [("zh-cn", "北京首都")], empty if none or on any failure
+     * @return up to 3 non-English names, e.g. [("zh-cn", "北京首都")], possibly none;
+     *         Optional.empty() if Wikidata couldn't be reached (busy or timed out), so callers can retry later
      */
-    public List<LocalName> localNames(String icaoCode, String englishCity) {
+    public Optional<List<LocalName>> localNames(String icaoCode, String englishCity) {
         if (icaoCode == null || !icaoCode.matches("[A-Z0-9]{4}") || englishCity == null) {
-            return List.of();
+            return Optional.of(List.of());
         }
 
         String url = ENDPOINT + "?format=json&query="
@@ -112,14 +118,24 @@ public class WikidataService {
         try {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() != 200) {
-                return List.of();
+                return Optional.empty();
             }
+
+            SparqlResponse parsed = objectMapper.readValue(response.body(), SparqlResponse.class);
+            List<Map<String, Binding>> rows = parsed.results().bindings();
+
+            // several items can share an ICAO code: prefer one typed as an airport, then the best known
+            Comparator<Map<String, Binding>> rank = Comparator
+                    .comparing((Map<String, Binding> row) -> row.get("civil").value().equals("true"))
+                    .thenComparing(row -> Integer.parseInt(row.get("links").value()));
+            String item = rows.stream().max(rank).map(row -> row.get("airport").value()).orElse(null);
 
             // official language -> label language -> label, separately for the airport and its city
             Map<String, Map<String, String>> airportLabels = new LinkedHashMap<>();
             Map<String, Map<String, String>> cityLabels = new LinkedHashMap<>();
-            SparqlResponse parsed = objectMapper.readValue(response.body(), SparqlResponse.class);
-            for (Map<String, Binding> row : parsed.results().bindings()) {
+            for (Map<String, Binding> row : rows) {
+                if (!row.get("airport").value().equals(item)) continue;
+
                 String lang = row.get("lang").value();
                 if (lang.equals("en")) continue;
 
@@ -145,10 +161,10 @@ public class WikidataService {
                 names.add(new LocalName(lang, name));
                 if (names.size() == MAX_NAMES) break;
             }
-            return names;
+            return Optional.of(names);
         } catch (Exception e) {
             // translations are a nice-to-have; never fail the caller over them
-            return List.of();
+            return Optional.empty();
         }
     }
 
