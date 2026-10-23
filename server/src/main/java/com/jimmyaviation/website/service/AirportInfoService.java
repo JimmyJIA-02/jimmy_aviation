@@ -59,6 +59,6 @@ public class AirportInfoService {
                 a.country() != null ? a.country().name() : null,
                 a.location() != null ? a.location().lat() : null,
                 a.location() != null ? a.location().lon() : null,
-                wikidataService.localCityNames(a.icao(), city));
+                wikidataService.localNames(a.icao(), city));
     }
 }

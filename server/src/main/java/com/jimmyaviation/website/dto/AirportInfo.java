@@ -15,7 +15,7 @@ public record AirportInfo(
         List<LocalName> localNames
 ) {
 
-    // City name in one of its country's official languages, e.g. ("ms", "Singapura")
+    // Airport (or, failing that, city) name in one of its country's official languages, e.g. ("zh-cn", "北京首都")
     public record LocalName(
             String lang,
             String label

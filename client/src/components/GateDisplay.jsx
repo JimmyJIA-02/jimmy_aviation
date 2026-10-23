@@ -4,6 +4,9 @@ import api from '../api/axios';
 const NAME_DURATION = 4000; // ms each language stays on screen
 const DEFAULT_BRAND = [59, 130, 246];
 const NAVY = '#0e1a2e';
+const PENDING_BRAND = '#1c2a42'; // blends into the box until the airline colour is known
+const LABEL_HEIGHT = 14; // "FROM" / "TO" line
+const LABEL_GAP = 4;
 const MUTED = '#8796ad';
 const DIVIDER = '1px solid rgba(255,255,255,0.08)';
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
@@ -76,20 +79,42 @@ function useAirportInfo(code) {
     return state.code === code ? state.info : null;
 }
 
+// Colour picked from an airline's logo on an earlier visit, so it shows from the first frame.
+// undefined = not known yet, null = logo has no usable colour
+function cachedColour(icao) {
+    try {
+        const value = localStorage.getItem(`airlineColour:${icao}`);
+        return value ? JSON.parse(value) : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+function saveColour(icao, rgb) {
+    try {
+        localStorage.setItem(`airlineColour:${icao}`, JSON.stringify(rgb));
+    } catch { /* private mode etc. */ }
+}
+
 // Logo served by our own server; brand colour is picked from it
 function useAirlineLogo(icao) {
-    const [state, setState] = useState({ icao: null, ok: false, rgb: null });
+    const [state, setState] = useState({ icao: null, status: 'loading', rgb: undefined });
 
     useEffect(() => {
         if (!icao) return;
         const img = new Image();
-        img.onload = () => setState({ icao, ok: true, rgb: dominantColour(img) });
-        img.onerror = () => setState({ icao, ok: false, rgb: null });
+        img.onload = () => {
+            const rgb = dominantColour(img);
+            saveColour(icao, rgb);
+            setState({ icao, status: 'ok', rgb });
+        };
+        img.onerror = () => setState({ icao, status: 'failed', rgb: null });
         img.src = `/api/airline/${icao}/logo`;
         return () => { img.onload = img.onerror = null; };
     }, [icao]);
 
-    return state.icao === icao ? state : { ok: false, rgb: null };
+    if (!icao) return { status: 'failed', rgb: null };
+    return state.icao === icao ? state : { status: 'loading', rgb: cachedColour(icao) };
 }
 
 // "Singapore/Changi" in English first, then the city in each local language
@@ -134,9 +159,12 @@ function Place({ label, versions, delay, align, nameRef }) {
 
     return (
         <div style={{ minWidth: 0, textAlign: align }}>
+            {/* fixed height, so a language tag in another script can't push the name down */}
             <p style={{
                 fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase',
-                color: MUTED, fontWeight: 600, margin: '0 0 4px',
+                color: MUTED, fontWeight: 600, margin: `0 0 ${LABEL_GAP}px`,
+                height: `${LABEL_HEIGHT}px`, lineHeight: `${LABEL_HEIGHT}px`,
+                whiteSpace: 'nowrap', overflow: 'hidden',
             }}>
                 {label}
                 <span style={{
@@ -149,7 +177,8 @@ function Place({ label, versions, delay, align, nameRef }) {
             {/* every version sits in the same grid cell, so the height never jumps */}
             <p ref={nameRef} style={{
                 display: 'grid', overflow: 'hidden', margin: 0,
-                fontWeight: 800, letterSpacing: '-0.5px', lineHeight: 1.1,
+                fontSize: 'var(--name-size)', fontWeight: 800, letterSpacing: '-0.5px', lineHeight: 1.1,
+                paddingBlock: '0.1em', // room for tall scripts (Thai, Tamil) so they aren't clipped
             }}>
                 {versions.map((v, i) => {
                     const shown = i === index;
@@ -182,24 +211,30 @@ export default function GateDisplay({ spotting, isMobile }) {
     const toVersions = placeVersions(flight?.arrivalAirport, toInfo);
 
     const cardRef = useRef(null);
+    const routeRef = useRef(null);
     const fromRef = useRef(null);
     const toRef = useRef(null);
 
+    // still waiting on the first-ever logo load: neutral, then fade into the airline colour
+    const pending = logo.rgb === undefined && logo.status === 'loading';
     const [r, g, b] = logo.rgb || DEFAULT_BRAND;
-    const brand = `rgb(${r},${g},${b})`;
-    const onBrand = (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6 ? NAVY : '#fff';
+    const brand = pending ? PENDING_BRAND : `rgb(${r},${g},${b})`;
+    const onBrand = pending ? '#cdd6e6'
+        : (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6 ? NAVY : '#fff';
 
     // Shrink From and To together until no unbreakable part overflows, so both stay the same size
     const namesKey = [...fromVersions, ...toVersions].map(v => v.label).join('|');
     useLayoutEffect(() => {
         const base = isMobile ? 26 : 36;
+        // the size lives in a CSS variable on the route, so the plane can line up with the names too
         const fit = () => {
+            const route = routeRef.current;
             const names = [fromRef.current, toRef.current].filter(Boolean);
             let size = base;
-            names.forEach(n => { n.style.fontSize = `${size}px`; });
+            route.style.setProperty('--name-size', `${size}px`);
             while (size > 16 && names.some(n => n.scrollWidth > n.clientWidth + 1)) {
                 size -= 1;
-                names.forEach(n => { n.style.fontSize = `${size}px`; });
+                route.style.setProperty('--name-size', `${size}px`);
             }
         };
         fit();
@@ -243,10 +278,11 @@ export default function GateDisplay({ spotting, isMobile }) {
                             display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
                             color: MUTED,
                         }}>
-                            {logo.ok
-                                ? <img src={`/api/airline/${airlineIcao}/logo`} alt=""
+                            {logo.status === 'ok' && (
+                                <img src={`/api/airline/${airlineIcao}/logo`} alt=""
                                     style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
-                                : <PlaneIcon size={22} />}
+                            )}
+                            {logo.status === 'failed' && <PlaneIcon size={22} />}
                         </div>
                         <span style={{ flex: 1, fontSize: '15px', fontWeight: 600, color: '#cdd6e6', ...ellipsis }}>
                             {spotting.airline?.airlineName || '—'}
@@ -263,7 +299,8 @@ export default function GateDisplay({ spotting, isMobile }) {
                     <div style={{
                         display: 'flex',
                         flexDirection: isMobile ? 'column' : 'row',
-                        alignItems: isMobile ? 'stretch' : 'center',
+                        // top-aligned: a name wrapping to two lines grows downwards and moves nothing else
+                        alignItems: isMobile ? 'stretch' : 'flex-start',
                         gap: isMobile ? '16px' : '28px',
                         padding: pad,
                     }}>
@@ -279,13 +316,19 @@ export default function GateDisplay({ spotting, isMobile }) {
                                 {flight?.flightNumber || '—'}
                             </b>
                         </div>
-                        <div style={{
-                            flex: 1, minWidth: 0, display: 'grid', alignItems: 'center',
+                        <div ref={routeRef} style={{
+                            flex: 1, minWidth: 0, display: 'grid', alignItems: 'start',
                             gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) auto minmax(0, 1fr)',
                             gap: isMobile ? '6px' : '18px',
+                            '--name-size': `${isMobile ? 26 : 36}px`,
                         }}>
                             <Place label="From" versions={fromVersions} delay={NAME_DURATION} align="left" nameRef={fromRef} />
-                            <div style={{ display: 'flex', alignItems: 'center', color: brand, transition: 'color .4s' }}>
+                            {/* centred on the first line of the names (26px icon) */}
+                            <div style={{
+                                display: 'flex', alignItems: 'center', color: brand, transition: 'color .4s',
+                                marginTop: isMobile ? 0
+                                    : `calc(${LABEL_HEIGHT + LABEL_GAP}px + 0.1 * var(--name-size) + 0.55 * var(--name-size) - 13px)`,
+                            }}>
                                 {!isMobile && <i style={{ width: '28px', borderTop: '2px dashed rgba(255,255,255,0.25)' }} />}
                                 <span style={{ margin: isMobile ? 0 : '0 6px', display: 'flex' }}>
                                     <PlaneIcon size={26} rotate={isMobile ? 180 : 90} />

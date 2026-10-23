@@ -33,7 +33,7 @@ public class LookupController {
         }
         return airportInfoService.find(code)
                 .map(info -> ResponseEntity.ok()
-                        .header(HttpHeaders.CACHE_CONTROL, "max-age=86400")
+                        .header(HttpHeaders.CACHE_CONTROL, "max-age=3600")
                         .body(info))
                 .orElse(ResponseEntity.notFound().build());
     }
