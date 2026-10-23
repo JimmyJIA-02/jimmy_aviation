@@ -64,13 +64,17 @@ function dominantColour(img) {
     return [best.r / best.n, best.g / best.n, best.b / best.n].map(Math.round);
 }
 
+// Bump when the airport-info response changes, so browsers holding an old copy
+// (v1 was cached for a day with city names like 北京市) fetch a fresh one
+const AIRPORT_INFO_VERSION = 2;
+
 function useAirportInfo(code) {
     const [state, setState] = useState({ code: null, info: null });
 
     useEffect(() => {
         if (!isIataCode(code)) return;
         let cancelled = false;
-        api.get(`/airport-info/${code}`)
+        api.get(`/airport-info/${code}`, { params: { v: AIRPORT_INFO_VERSION } })
             .then(res => !cancelled && setState({ code, info: res.data }))
             .catch(() => { });
         return () => { cancelled = true; };

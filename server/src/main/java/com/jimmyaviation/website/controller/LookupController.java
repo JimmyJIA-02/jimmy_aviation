@@ -32,8 +32,9 @@ public class LookupController {
             return ResponseEntity.notFound().build();
         }
         return airportInfoService.find(code)
+                // the server already caches in memory; browsers re-ask so name changes show up immediately
                 .map(info -> ResponseEntity.ok()
-                        .header(HttpHeaders.CACHE_CONTROL, "max-age=3600")
+                        .header(HttpHeaders.CACHE_CONTROL, "no-cache")
                         .body(info))
                 .orElse(ResponseEntity.notFound().build());
     }
