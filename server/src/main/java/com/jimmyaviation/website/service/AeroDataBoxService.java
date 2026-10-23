@@ -1,5 +1,6 @@
 package com.jimmyaviation.website.service;
 
+import com.jimmyaviation.website.dto.AeroDataBoxAirport;
 import com.jimmyaviation.website.dto.AeroDataBoxResponse;
 
 import tools.jackson.databind.ObjectMapper;
@@ -99,6 +100,48 @@ public class AeroDataBoxService {
             throw e;
         } catch (Exception e) {
             throw new RuntimeException("Failed to lookup registration", e);
+        }
+    }
+
+    /**
+     * Get an airport's names, municipality, country and location.
+     *
+     * @param iataCode Airport IATA code (e.g. "SIN")
+     * @return the airport, or null if AeroDataBox doesn't know the code
+     */
+    public AeroDataBoxAirport lookupAirport(String iataCode) {
+        String url = String.format("%s/airports/iata/%s", baseUrl, iataCode.toUpperCase());
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("x-rapidapi-key", apiKey)
+                .header("x-rapidapi-host", baseUrl.replace("https://", ""))
+                .timeout(Duration.ofSeconds(15))
+                .GET()
+                .build();
+
+        try {
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+            // the plan allows about one request per second; departure and arrival are often looked up together
+            for (int retry = 0; retry < 3 && response.statusCode() == 429; retry++) {
+                Thread.sleep(1100);
+                response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            }
+
+            if (response.statusCode() == 204 || response.statusCode() == 404 || response.statusCode() == 400) {
+                return null;
+            }
+
+            if (response.statusCode() != 200) {
+                throw new RuntimeException("AeroDataBox API returned " + response.statusCode());
+            }
+
+            return objectMapper.readValue(response.body(), AeroDataBoxAirport.class);
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to lookup airport", e);
         }
     }
 }

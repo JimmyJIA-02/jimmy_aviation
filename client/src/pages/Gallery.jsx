@@ -115,6 +115,20 @@ async function geocodeCity(cityName) {
 
     if (coordsCache[cityName]) return coordsCache[cityName];
 
+    // Flights now store IATA codes; the server knows their exact location
+    if (/^[A-Z]{3}$/.test(cityName)) {
+        try {
+            const { data } = await api.get(`/airport-info/${cityName}`);
+            if (data.lat != null && data.lon != null) {
+                coordsCache[cityName] = { lat: data.lat, lng: data.lon };
+                return coordsCache[cityName];
+            }
+        } catch (err) {
+            console.error('Airport lookup failed for', cityName, err);
+        }
+        return null;
+    }
+
     // Check localStorage cache
     const cached = localStorage.getItem(`geo_${cityName}`);
     if (cached) {

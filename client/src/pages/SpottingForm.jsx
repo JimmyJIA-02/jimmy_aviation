@@ -126,6 +126,11 @@ export default function SpottingForm() {
     sessionStorage.setItem('spottingDraft', JSON.stringify(updated));
   };
 
+  // the server looks the airport up by code, so keep it uppercase
+  const handleAirportCodeChange = (e) => {
+    handleChange({ target: { name: e.target.name, value: e.target.value.toUpperCase() } });
+  };
+
   const handleCountryBlur = (e) => {
     const { name, value } = e.target;
     const normalized = normalizeCountry(value);
@@ -306,8 +311,8 @@ export default function SpottingForm() {
             <Field label="Flight Number" name="flightNumber" value={form.flightNumber} onChange={handleChange} placeholder="QF94" />
           </FieldRow>
           <FieldRow>
-            <Field label="Departure" name="departureAirport" value={form.departureAirport} onChange={handleChange} placeholder="Aircraft Departure City" />
-            <Field label="Arrival" name="arrivalAirport" value={form.arrivalAirport} onChange={handleChange} placeholder="Aircraft Arrival City" />
+            <Field label="Departure IATA" name="departureAirport" value={form.departureAirport} onChange={handleAirportCodeChange} placeholder="SIN" />
+            <Field label="Arrival IATA" name="arrivalAirport" value={form.arrivalAirport} onChange={handleAirportCodeChange} placeholder="MEL" />
           </FieldRow>
         </FieldSection>
 

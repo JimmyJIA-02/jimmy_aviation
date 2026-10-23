@@ -1,109 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
-
-const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789- '.split('');
-
-function SplitFlapChar({ targetChar, delay, small }) {
-    const [currentChar, setCurrentChar] = useState(' ');
-    const [flipping, setFlipping] = useState(false);
-    const hasAnimated = useRef(false);
-
-    useEffect(() => {
-        if (hasAnimated.current) return;
-        hasAnimated.current = true;
-
-        const target = (targetChar || ' ').toUpperCase();
-        let timeout;
-        let flipCount = 0;
-        const totalFlips = Math.floor(Math.random() * 10) + 8;
-        const startIndex = Math.floor(Math.random() * CHARS.length);
-
-        timeout = setTimeout(() => {
-            const interval = setInterval(() => {
-                flipCount++;
-                setFlipping(true);
-
-                setTimeout(() => {
-                    if (flipCount >= totalFlips) {
-                        setCurrentChar(target);
-                        setFlipping(false);
-                        clearInterval(interval);
-                    } else {
-                        setCurrentChar(CHARS[(startIndex + flipCount) % CHARS.length]);
-                        setFlipping(false);
-                    }
-                }, 70);
-            }, 150);
-        }, delay);
-
-        return () => clearTimeout(timeout);
-    }, []);
-
-    return (
-        <div style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: small ? '16px' : '20px',
-            height: small ? '22px' : '28px',
-            background: '#1a1a1a',
-            borderRadius: '3px',
-            margin: '0 1px',
-            position: 'relative',
-            overflow: 'hidden',
-            boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.4)',
-        }}>
-            <div style={{
-                position: 'absolute',
-                top: '50%',
-                left: 0,
-                right: 0,
-                height: '1px',
-                background: 'rgba(0,0,0,0.5)',
-                zIndex: 2,
-            }} />
-            <span style={{
-                color: '#f0e060',
-                fontSize: small ? '12px' : '15px',
-                fontWeight: 700,
-                fontFamily: "'Courier New', monospace",
-                transform: flipping ? 'perspective(200px) rotateX(90deg)' : 'perspective(200px) rotateX(0deg)',
-                transition: 'transform 0.06s ease-in',
-                zIndex: 1,
-            }}>
-                {currentChar}
-            </span>
-        </div>
-    );
-}
-
-function SplitFlapRow({ label, value, maxLen = 16, small }) {
-    const text = (value || '—').toUpperCase().padEnd(maxLen, ' ').slice(0, maxLen);
-
-    return (
-        <div>
-            <p style={{
-                fontSize: small ? '9px' : '11px',
-                fontWeight: 600,
-                color: '#888',
-                textTransform: 'uppercase',
-                letterSpacing: '1.5px',
-                marginBottom: small ? '4px' : '6px',
-                textAlign: 'left',
-                width: '100%',
-            }}>{label}</p>
-            <div style={{
-                display: 'flex',
-                justifyContent: small ? 'flex-start' : 'center',
-            }}>
-                {text.split('').map((char, i) => (
-                    <SplitFlapChar key={i} targetChar={char} delay={i * 80 + Math.random() * 150} small={small} />
-                ))}
-            </div>
-        </div>
-    );
-}
+import GateDisplay from '../components/GateDisplay';
 
 function useIsMobile() {
     const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
@@ -217,103 +115,36 @@ export default function SpottingDetail() {
                     </div>
                 )}
 
-                {/* Info section */}
-                <div style={{ marginBottom: '16px' }}>
-                    {isMobile ? (
-                        <>
-                            {/* ... keep mobile layout unchanged ... */}
-                        </>
-                    ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            {/* Row 1: Registration | Like button */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <h1 style={{
-                                    fontSize: '28px', fontWeight: 700,
-                                    letterSpacing: '-0.5px', margin: 0,
-                                }}>
-                                    {spotting.registration || '—'}
-                                </h1>
-                                <button
-                                    onClick={handleLike}
-                                    style={{
-                                        display: 'flex', alignItems: 'center', gap: '8px',
-                                        padding: '8px 18px',
-                                        background: liked ? '#1a1a2e' : '#f8f8fa',
-                                        border: '1px solid #eee',
-                                        borderRadius: '24px',
-                                        cursor: liked ? 'default' : 'pointer',
-                                        fontSize: '15px',
-                                        fontWeight: 600,
-                                        color: liked ? '#fff' : '#333',
-                                        transition: 'all 0.15s',
-                                        fontFamily: "'DM Sans', sans-serif",
-                                    }}
-                                >
-                                    👍 {spotting.likes || 0}
-                                </button>
-                            </div>
+                {/* Gate display */}
+                <GateDisplay spotting={spotting} isMobile={isMobile} />
 
-                            {/* Row 2: Airline | Location */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <p style={{ fontSize: '18px', color: '#555', margin: 0 }}>
-                                    {spotting.airline?.airlineName || '—'}
-                                </p>
-                                <p style={{ fontSize: '15px', color: '#555', margin: 0 }}>
-                                    📍 {spotting.spotLocation?.airportName || '—'}
-                                    {spotting.spotLocation?.iataCode && ` (${spotting.spotLocation.iataCode})`}
-                                </p>
-                            </div>
-
-                            {/* Row 3: Aircraft | Notes */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                <p style={{ fontSize: '15px', color: '#888', margin: 0 }}>
-                                    {spotting.aircraft?.icaoCode || ''} · {spotting.aircraft?.typeName || '—'}
-                                </p>
-                                <p style={{ fontSize: '13px', color: '#999', margin: 0, textAlign: 'right', maxWidth: '55%' }}>
-                                    {spotting.notes || '—'}
-                                </p>
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Split-flap display */}
+                {/* Notes | Like button */}
                 <div style={{
-                    display: 'flex',
-                    flexDirection: isMobile ? 'column' : 'row',
-                    justifyContent: 'space-between',
-                    gap: isMobile ? '10px' : '0px',
-                    marginBottom: '16px',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+                    gap: '16px', margin: '16px 0',
                 }}>
-                    <div style={{
-                        background: '#0a0a0a',
-                        borderRadius: '10px',
-                        padding: isMobile ? '10px 14px' : '14px 18px',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-                        border: '1px solid #222',
-                    }}>
-                        <SplitFlapRow label="Flight" value={spotting.flight?.flightNumber} maxLen={6} small={isMobile} />
-                    </div>
-
-                    <div style={{
-                        background: '#0a0a0a',
-                        borderRadius: '10px',
-                        padding: isMobile ? '10px 14px' : '14px 18px',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-                        border: '1px solid #222',
-                    }}>
-                        <SplitFlapRow label="From" value={spotting.flight?.departureAirport} maxLen={12} small={isMobile} />
-                    </div>
-
-                    <div style={{
-                        background: '#0a0a0a',
-                        borderRadius: '10px',
-                        padding: isMobile ? '10px 14px' : '14px 18px',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-                        border: '1px solid #222',
-                    }}>
-                        <SplitFlapRow label="To" value={spotting.flight?.arrivalAirport} maxLen={12} small={isMobile} />
-                    </div>
+                    <p style={{ fontSize: isMobile ? '12px' : '13px', color: '#999', margin: 0 }}>
+                        {spotting.notes || ''}
+                    </p>
+                    <button
+                        onClick={handleLike}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '8px',
+                            flexShrink: 0,
+                            padding: isMobile ? '6px 14px' : '8px 18px',
+                            background: liked ? '#1a1a2e' : '#f8f8fa',
+                            border: '1px solid #eee',
+                            borderRadius: '24px',
+                            cursor: liked ? 'default' : 'pointer',
+                            fontSize: isMobile ? '14px' : '15px',
+                            fontWeight: 600,
+                            color: liked ? '#fff' : '#333',
+                            transition: 'all 0.15s',
+                            fontFamily: "'DM Sans', sans-serif",
+                        }}
+                    >
+                        👍 {spotting.likes || 0}
+                    </button>
                 </div>
             </div>
         </div>

@@ -9,4 +9,6 @@ import com.jimmyaviation.website.entity.Flight;
 
 public interface FlightRepository extends JpaRepository<Flight, UUID> {
     Optional<Flight> findByFlightNumber(String flightNumber);
+
+    boolean existsByDepartureAirportOrArrivalAirport(String departureAirport, String arrivalAirport);
 }

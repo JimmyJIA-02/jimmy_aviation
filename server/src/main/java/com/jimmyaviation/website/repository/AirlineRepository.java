@@ -9,4 +9,6 @@ import com.jimmyaviation.website.entity.Airline;
 
 public interface AirlineRepository extends JpaRepository<Airline, UUID> {
     Optional<Airline> findByIcaoCode(String icaoCode);
+
+    boolean existsByIcaoCode(String icaoCode);
 }

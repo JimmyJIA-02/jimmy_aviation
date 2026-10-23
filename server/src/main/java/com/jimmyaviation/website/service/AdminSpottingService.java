@@ -21,6 +21,7 @@ public class AdminSpottingService {
     private final FlightRepository flightRepository;
 
     private final PhotoService photoService;
+    private final AirportInfoService airportInfoService;
 
     public Spotting createSpotting(
             String registration,
@@ -43,7 +44,10 @@ public class AdminSpottingService {
         Airline airline = findOrCreateAirline(airlineIcao, airlineName);
         Airport spotLocation = findOrCreateAirport(spotLocationIata, spotLocationName, spotLocationCity,
                 spotLocationCountry);
-        Flight flight = findOrCreateFlight(flightNumber, departureAirport, arrivalAirport);
+        Flight flight = findOrCreateFlight(
+                flightNumber,
+                checkAirportCode(departureAirport, null),
+                checkAirportCode(arrivalAirport, null));
 
         Spotting spotting = new Spotting();
         spotting.setRegistration(registration);
@@ -110,15 +114,30 @@ public class AdminSpottingService {
                 });
     }
 
+    // flights are shared by flight number, so the latest saved route wins
     private Flight findOrCreateFlight(String flightNumber, String departure, String arrival) {
-        return flightRepository.findByFlightNumber(flightNumber)
-                .orElseGet(() -> {
-                    Flight f = new Flight();
-                    f.setFlightNumber(flightNumber);
-                    f.setDepartureAirport(departure);
-                    f.setArrivalAirport(arrival);
-                    return flightRepository.save(f);
-                });
+        Flight f = flightRepository.findByFlightNumber(flightNumber).orElseGet(Flight::new);
+        f.setFlightNumber(flightNumber);
+        f.setDepartureAirport(departure);
+        f.setArrivalAirport(arrival);
+        return flightRepository.save(f);
+    }
+
+    /**
+     * Departure/arrival are stored as IATA codes and must be known to AeroDataBox.
+     * A value equal to what's already saved is kept as is, so older spottings that hold
+     * a city name can still be edited without converting them.
+     */
+    private String checkAirportCode(String value, String current) {
+        if (value != null && value.equals(current)) {
+            return current;
+        }
+        String code = value == null ? "" : value.trim().toUpperCase();
+        if (airportInfoService.find(code).isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Unknown airport code \"" + code + "\". Use the 3-letter IATA code, e.g. SIN.");
+        }
+        return code;
     }
 
     public Spotting patchSpotting(UUID id, Map<String, String> updates) {
@@ -152,16 +171,11 @@ public class AdminSpottingService {
                     updates.get("spotLocationCountry")));
         }
         if (updates.containsKey("flightNumber")) {
-            Flight flight = findOrCreateFlight(
+            Flight current = spotting.getFlight();
+            spotting.setFlight(findOrCreateFlight(
                     updates.get("flightNumber"),
-                    updates.get("departureAirport"),
-                    updates.get("arrivalAirport"));
-
-            flight.setDepartureAirport(updates.get("departureAirport"));
-            flight.setArrivalAirport(updates.get("arrivalAirport"));
-
-            flightRepository.save(flight);
-            spotting.setFlight(flight);
+                    checkAirportCode(updates.get("departureAirport"), current.getDepartureAirport()),
+                    checkAirportCode(updates.get("arrivalAirport"), current.getArrivalAirport())));
         }
 
         return spottingRepository.save(spotting);
