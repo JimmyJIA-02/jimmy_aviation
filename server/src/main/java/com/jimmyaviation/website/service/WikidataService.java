@@ -31,19 +31,34 @@ public class WikidataService {
     private static final String USER_AGENT = "JimmyAviation/1.0 (personal plane-spotting gallery)";
     private static final int MAX_NAMES = 3;
 
-    // airport (by ICAO, P239) -> country's official languages (P37) -> the airport's label in each,
-    // plus the label of the city it serves (P931) as a fallback when the airport has none
+    // airport (by ICAO, P239) -> country's official languages (P37) -> the airport's labels in that
+    // language and its variants (zh-cn -> zh, zh-hans, ...), plus the same for the city it serves (P931)
+    // as a fallback when the airport has none
     private static final String QUERY = """
-            SELECT ?lang ?airportLabel ?cityEn ?cityLabel WHERE {
+            SELECT ?lang ?kind ?labelLang ?label ?cityEn WHERE {
               ?airport wdt:P239 "%s" ; wdt:P17 ?country .
               ?country wdt:P37 ?langItem . ?langItem wdt:P424 ?lang .
-              OPTIONAL { ?airport rdfs:label ?airportLabel . FILTER(LANG(?airportLabel) = ?lang) }
-              OPTIONAL {
+              BIND(STRBEFORE(CONCAT(?lang, "-"), "-") AS ?base)
+              {
+                ?airport rdfs:label ?label . BIND("airport" AS ?kind)
+              } UNION {
                 ?airport wdt:P931 ?city .
-                ?city rdfs:label ?cityEn . FILTER(LANG(?cityEn) = "en")
-                ?city rdfs:label ?cityLabel . FILTER(LANG(?cityLabel) = ?lang)
+                ?city rdfs:label ?label ; rdfs:label ?cityEn . FILTER(LANG(?cityEn) = "en")
+                BIND("city" AS ?kind)
               }
+              BIND(LANG(?label) AS ?labelLang)
+              FILTER(?labelLang = ?base || STRSTARTS(?labelLang, CONCAT(?base, "-")))
             }""";
+
+    // Wikidata often files a name under a sibling code rather than the country's official one,
+    // e.g. Nanjing Lukou has "zh" and "zh-hans" but no "zh-cn". Plain "zh" may be in either script,
+    // so the matching script variant is tried first.
+    private static final Map<String, List<String>> LANG_FALLBACKS = Map.of(
+            "zh-cn", List.of("zh-hans", "zh-sg", "zh-my", "zh"),
+            "zh-sg", List.of("zh-hans", "zh-cn", "zh"),
+            "zh-tw", List.of("zh-hant", "zh-hk", "zh"),
+            "zh-hk", List.of("zh-hant", "zh-tw", "zh"),
+            "zh-mo", List.of("zh-hk", "zh-hant", "zh"));
 
     // "北京首都国际机场" -> "北京首都", "Flughafen Frankfurt Main" -> "Frankfurt Main", "مطار دبي الدولي" -> "دبي"
     private static final List<Pattern> AIRPORT_WORDS = List.of(
@@ -100,26 +115,34 @@ public class WikidataService {
                 return List.of();
             }
 
-            // one name per language: the airport's own label wins over the city's
-            Map<String, String> byLang = new LinkedHashMap<>();
+            // official language -> label language -> label, separately for the airport and its city
+            Map<String, Map<String, String>> airportLabels = new LinkedHashMap<>();
+            Map<String, Map<String, String>> cityLabels = new LinkedHashMap<>();
             SparqlResponse parsed = objectMapper.readValue(response.body(), SparqlResponse.class);
             for (Map<String, Binding> row : parsed.results().bindings()) {
                 String lang = row.get("lang").value();
                 if (lang.equals("en")) continue;
 
-                if (row.containsKey("airportLabel")) {
-                    byLang.put(lang, stripAirportWords(row.get("airportLabel").value()));
-                } else if (row.containsKey("cityLabel")
-                        && row.get("cityEn").value().equalsIgnoreCase(englishCity)) {
-                    byLang.putIfAbsent(lang, row.get("cityLabel").value());
-                }
+                boolean isAirport = row.get("kind").value().equals("airport");
+                if (!isAirport && !row.get("cityEn").value().equalsIgnoreCase(englishCity)) continue;
+
+                airportLabels.computeIfAbsent(lang, k -> new LinkedHashMap<>());
+                (isAirport ? airportLabels : cityLabels)
+                        .computeIfAbsent(lang, k -> new LinkedHashMap<>())
+                        .putIfAbsent(row.get("labelLang").value(), row.get("label").value());
             }
 
+            // one name per official language: the airport's own label wins over the city's
             List<LocalName> names = new ArrayList<>();
             Set<String> seen = new HashSet<>(Set.of(englishCity.toLowerCase()));
-            for (Map.Entry<String, String> entry : byLang.entrySet()) {
-                if (!seen.add(entry.getValue().toLowerCase())) continue;
-                names.add(new LocalName(entry.getKey(), entry.getValue()));
+            for (String lang : airportLabels.keySet()) {
+                String airport = pick(lang, airportLabels.get(lang));
+                String name = airport != null
+                        ? stripAirportWords(airport)
+                        : pick(lang, cityLabels.getOrDefault(lang, Map.of()));
+                if (name == null || !seen.add(name.toLowerCase())) continue;
+
+                names.add(new LocalName(lang, name));
                 if (names.size() == MAX_NAMES) break;
             }
             return names;
@@ -127,6 +150,18 @@ public class WikidataService {
             // translations are a nice-to-have; never fail the caller over them
             return List.of();
         }
+    }
+
+    // exact language first, then its variants, then the bare language ("pt-br" -> "pt")
+    private static String pick(String lang, Map<String, String> labels) {
+        List<String> order = new ArrayList<>();
+        order.add(lang);
+        order.addAll(LANG_FALLBACKS.getOrDefault(lang, List.of()));
+        order.add(lang.split("-")[0]);
+        for (String candidate : order) {
+            if (labels.containsKey(candidate)) return labels.get(candidate);
+        }
+        return null;
     }
 
     private static String stripAirportWords(String label) {
