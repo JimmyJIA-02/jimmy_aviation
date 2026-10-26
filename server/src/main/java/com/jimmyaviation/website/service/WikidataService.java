@@ -55,6 +55,15 @@ public class WikidataService {
               FILTER(?labelLang = ?base || STRSTARTS(?labelLang, CONCAT(?base, "-")))
             }""";
 
+    // An airport's English name, for airports AeroDataBox has no names for (e.g. MGB).
+    // The airport's own label is used rather than the city it serves: for MGB that lists a region
+    private static final String ENGLISH_NAME_QUERY = """
+            SELECT ?en WHERE {
+              ?airport wdt:P239 "%s" ; wikibase:sitelinks ?links .
+              BIND(EXISTS { ?airport wdt:P31/wdt:P279* wd:Q1248784 } AS ?civil)
+              ?airport rdfs:label ?en . FILTER(LANG(?en) = "en")
+            } ORDER BY DESC(?civil) DESC(?links) LIMIT 1""";
+
     // Wikidata often files a name under a sibling code rather than the country's official one,
     // e.g. Nanjing Lukou has "zh" and "zh-hans" but no "zh-cn". Plain "zh" may be in either script,
     // so the matching script variant is tried first.
@@ -92,6 +101,30 @@ public class WikidataService {
     private record Binding(String value) {}
 
     /**
+     * @param icaoCode Airport ICAO code (e.g. "YMTG")
+     * @return the airport's English name without airport words ("Mount Gambier Airport" -> "Mount Gambier"),
+     *         "" if Wikidata has none; Optional.empty() if Wikidata couldn't be reached, so callers can retry later
+     */
+    public Optional<String> englishName(String icaoCode) {
+        if (icaoCode == null || !icaoCode.matches("[A-Z0-9]{4}")) {
+            return Optional.of("");
+        }
+        try {
+            HttpResponse<String> response = query(ENGLISH_NAME_QUERY.formatted(icaoCode));
+            if (response.statusCode() != 200) {
+                return Optional.empty();
+            }
+            SparqlResponse parsed = objectMapper.readValue(response.body(), SparqlResponse.class);
+            return Optional.of(parsed.results().bindings().stream()
+                    .findFirst()
+                    .map(row -> stripAirportWords(row.get("en").value()))
+                    .orElse(""));
+        } catch (Exception e) {
+            return Optional.empty();
+        }
+    }
+
+    /**
      * @param icaoCode    Airport ICAO code (e.g. "ZBAA")
      * @param englishCity City the airport serves, as AeroDataBox names it (e.g. "Beijing").
      *                    A city label is only used as fallback when its English name matches,
@@ -104,19 +137,8 @@ public class WikidataService {
             return Optional.of(List.of());
         }
 
-        String url = ENDPOINT + "?format=json&query="
-                + URLEncoder.encode(QUERY.formatted(icaoCode), StandardCharsets.UTF_8);
-
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .header("Accept", "application/sparql-results+json")
-                .header("User-Agent", USER_AGENT)
-                .timeout(Duration.ofSeconds(15))
-                .GET()
-                .build();
-
         try {
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = query(QUERY.formatted(icaoCode));
             if (response.statusCode() != 200) {
                 return Optional.empty();
             }
@@ -166,6 +188,17 @@ public class WikidataService {
             // translations are a nice-to-have; never fail the caller over them
             return Optional.empty();
         }
+    }
+
+    private HttpResponse<String> query(String sparql) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(ENDPOINT + "?format=json&query=" + URLEncoder.encode(sparql, StandardCharsets.UTF_8)))
+                .header("Accept", "application/sparql-results+json")
+                .header("User-Agent", USER_AGENT)
+                .timeout(Duration.ofSeconds(15))
+                .GET()
+                .build();
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
     // exact language first, then its variants, then the bare language ("pt-br" -> "pt")

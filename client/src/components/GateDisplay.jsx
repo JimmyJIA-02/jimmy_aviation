@@ -124,15 +124,17 @@ function useAirlineLogo(icao) {
 // "Singapore/Changi" in English first, then the city in each local language
 function placeVersions(stored, info) {
     if (!info) return [{ lang: 'en', label: stored || '—' }];
-    const name = info.shortName && info.shortName !== info.city
-        ? `${info.city}/${info.shortName}`
-        : info.city;
+    // some airports come back without a city or short name; fall back to the code rather than crash
+    const city = info.city || info.shortName || stored || '—';
+    const name = info.shortName && info.shortName !== city
+        ? `${city}/${info.shortName}`
+        : city;
     return [{ lang: 'en', label: name }, ...(info.localNames || [])];
 }
 
 // Each "City/Airport" part stays whole; a line may only break after the slash
 function Segmented({ text }) {
-    const parts = text.split('/');
+    const parts = String(text ?? '').split('/');
     return parts.map((part, i) => (
         <Fragment key={i}>
             {i > 0 && <wbr />}

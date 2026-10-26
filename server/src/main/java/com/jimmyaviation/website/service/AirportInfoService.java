@@ -27,6 +27,7 @@ public class AirportInfoService {
     private final Map<String, Optional<AeroDataBoxAirport>> airports = new ConcurrentHashMap<>();
     // by ICAO; only successful lookups are kept, so a busy Wikidata is retried on the next request
     private final Map<String, List<LocalName>> localNames = new ConcurrentHashMap<>();
+    private final Map<String, String> wikidataNames = new ConcurrentHashMap<>();
 
     public static boolean isIataCode(String value) {
         return value != null && value.matches("[A-Z]{3}");
@@ -50,17 +51,39 @@ public class AirportInfoService {
     }
 
     private AirportInfo toInfo(AeroDataBoxAirport a) {
-        String city = a.municipalityName() != null ? a.municipalityName() : a.shortName();
+        String city = cityOf(a);
         return new AirportInfo(
                 a.iata(),
                 a.icao(),
                 city,
-                a.shortName(),
+                isBlank(a.shortName()) ? null : a.shortName(),
                 a.fullName(),
                 a.country() != null ? a.country().name() : null,
                 a.location() != null ? a.location().lat() : null,
                 a.location() != null ? a.location().lon() : null,
                 localNamesFor(a.icao(), city));
+    }
+
+    // Some smaller airports have no names on AeroDataBox at all (MGB: municipality and shortName null,
+    // fullName ""), so fall back to Wikidata's English name, then to the code itself; never null
+    private String cityOf(AeroDataBoxAirport a) {
+        for (String name : new String[] { a.municipalityName(), a.shortName(), a.fullName() }) {
+            if (!isBlank(name)) return name;
+        }
+        if (a.icao() != null) {
+            String cached = wikidataNames.get(a.icao());
+            if (cached == null) {
+                Optional<String> found = wikidataService.englishName(a.icao());
+                found.ifPresent(name -> wikidataNames.put(a.icao(), name));
+                cached = found.orElse("");
+            }
+            if (!cached.isBlank()) return cached;
+        }
+        return a.iata();
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     private List<LocalName> localNamesFor(String icaoCode, String city) {
