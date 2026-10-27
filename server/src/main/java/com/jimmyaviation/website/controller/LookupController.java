@@ -25,13 +25,16 @@ public class LookupController {
     private final FlightRepository flightRepository;
     private final AirlineRepository airlineRepository;
 
+    // names=false skips the local-language names (the route map only needs the location)
     @GetMapping("/airport-info/{iata}")
-    public ResponseEntity<AirportInfo> getAirportInfo(@PathVariable String iata) {
+    public ResponseEntity<AirportInfo> getAirportInfo(
+            @PathVariable String iata,
+            @RequestParam(defaultValue = "true") boolean names) {
         String code = iata.toUpperCase();
         if (!flightRepository.existsByDepartureAirportOrArrivalAirport(code, code)) {
             return ResponseEntity.notFound().build();
         }
-        return airportInfoService.find(code)
+        return airportInfoService.find(code, names)
                 // the server already caches in memory; browsers re-ask so name changes show up immediately
                 .map(info -> ResponseEntity.ok()
                         .header(HttpHeaders.CACHE_CONTROL, "no-cache")

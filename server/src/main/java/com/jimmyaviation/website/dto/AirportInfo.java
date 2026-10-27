@@ -10,6 +10,7 @@ public record AirportInfo(
         String shortName,
         String fullName,
         String country,
+        String continent,
         Double lat,
         Double lon,
         List<LocalName> localNames

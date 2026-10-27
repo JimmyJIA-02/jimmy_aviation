@@ -34,10 +34,18 @@ public class AirportInfoService {
     }
 
     /**
-     * @return the airport, or empty if the code is malformed or unknown to AeroDataBox
+     * @return the airport with its local-language names, or empty if the code is malformed or unknown to AeroDataBox
      * @throws RuntimeException if AeroDataBox can't be reached (not cached, so it's retried next time)
      */
     public Optional<AirportInfo> find(String iataCode) {
+        return find(iataCode, true);
+    }
+
+    /**
+     * @param withLocalNames false skips the Wikidata lookup, for callers that only need names and
+     *                       location (route map, code checks on save)
+     */
+    public Optional<AirportInfo> find(String iataCode, boolean withLocalNames) {
         if (!isIataCode(iataCode)) {
             return Optional.empty();
         }
@@ -47,10 +55,10 @@ public class AirportInfoService {
             airport = Optional.ofNullable(aeroDataBoxService.lookupAirport(iataCode));
             airports.put(iataCode, airport);
         }
-        return airport.map(this::toInfo);
+        return airport.map(a -> toInfo(a, withLocalNames));
     }
 
-    private AirportInfo toInfo(AeroDataBoxAirport a) {
+    private AirportInfo toInfo(AeroDataBoxAirport a, boolean withLocalNames) {
         String city = cityOf(a);
         return new AirportInfo(
                 a.iata(),
@@ -59,9 +67,10 @@ public class AirportInfoService {
                 isBlank(a.shortName()) ? null : a.shortName(),
                 a.fullName(),
                 a.country() != null ? a.country().name() : null,
+                a.continent() != null ? a.continent().name() : null,
                 a.location() != null ? a.location().lat() : null,
                 a.location() != null ? a.location().lon() : null,
-                localNamesFor(a.icao(), city));
+                withLocalNames ? localNamesFor(a.icao(), city) : List.of());
     }
 
     // Some smaller airports have no names on AeroDataBox at all (MGB: municipality and shortName null,

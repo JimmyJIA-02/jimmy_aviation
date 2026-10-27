@@ -133,7 +133,7 @@ public class AdminSpottingService {
             return current;
         }
         String code = value == null ? "" : value.trim().toUpperCase();
-        if (airportInfoService.find(code).isEmpty()) {
+        if (airportInfoService.find(code, false).isEmpty()) {
             throw new IllegalArgumentException(
                     "Unknown airport code \"" + code + "\". Use the 3-letter IATA code, e.g. SIN.");
         }

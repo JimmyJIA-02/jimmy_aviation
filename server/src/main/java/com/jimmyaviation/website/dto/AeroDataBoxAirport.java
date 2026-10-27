@@ -10,8 +10,15 @@ public record AeroDataBoxAirport(
         String fullName,
         String municipalityName,
         Location location,
-        Country country
+        Country country,
+        Continent continent
 ) {
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Continent(
+            String code,
+            String name
+    ) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Location(
