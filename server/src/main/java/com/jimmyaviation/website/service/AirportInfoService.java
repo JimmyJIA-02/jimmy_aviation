@@ -24,6 +24,11 @@ public class AirportInfoService {
     private final AeroDataBoxService aeroDataBoxService;
     private final WikidataService wikidataService;
 
+    // AeroDataBox names that are wrong, by IATA code: { city, shortName }.
+    // JNB comes back with municipality "Jo'anna" and shortName "Johannesburg OR Tambo".
+    private static final Map<String, String[]> NAME_FIXES = Map.of(
+            "JNB", new String[] { "Johannesburg", "OR Tambo" });
+
     private final Map<String, Optional<AeroDataBoxAirport>> airports = new ConcurrentHashMap<>();
     private final Map<String, Object> lookupLocks = new ConcurrentHashMap<>();
     // by ICAO; only successful lookups are kept, so a busy Wikidata is retried on the next request
@@ -66,12 +71,14 @@ public class AirportInfoService {
     }
 
     private AirportInfo toInfo(AeroDataBoxAirport a, boolean withLocalNames) {
-        String city = cityOf(a);
+        String[] fix = NAME_FIXES.get(a.iata());
+        String city = fix != null ? fix[0] : cityOf(a);
+        String shortName = fix != null ? fix[1] : a.shortName();
         return new AirportInfo(
                 a.iata(),
                 a.icao(),
                 city,
-                isBlank(a.shortName()) ? null : a.shortName(),
+                isBlank(shortName) ? null : shortName,
                 a.fullName(),
                 a.country() != null ? a.country().name() : null,
                 a.continent() != null ? a.continent().name() : null,

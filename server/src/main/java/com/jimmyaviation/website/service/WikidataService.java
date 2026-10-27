@@ -80,6 +80,8 @@ public class WikidataService {
                     + "((antarabangsa|internacional|internazionale|international|internasional|quốc tế)\\s+)?"
                     + "(de |di |du |d')?", Pattern.CASE_INSENSITIVE),
             Pattern.compile("^ท่าอากาศยาน(นานาชาติ)?"),
+            Pattern.compile("^boema-fofane( ba matjhaba)?( ba)?\\s+", Pattern.CASE_INSENSITIVE), // Sesotho
+            Pattern.compile("\\s+(internasionale\\s+)?lughawe$", Pattern.CASE_INSENSITIVE), // Afrikaans
             Pattern.compile("^مطار\\s+"),
             Pattern.compile("\\s+الدولي$"),
             Pattern.compile("(国际机场|國際機場|國際機埸|国際空港|机场|機場|空港|국제공항|공항)$"),
