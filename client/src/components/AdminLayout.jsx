@@ -41,7 +41,7 @@ export default function AdminLayout() {
           {[
             { to: '/admin', label: 'All Spottings', end: true },
             { to: '/admin/new', label: 'New Upload' },
-            { to: '/admin/airports', label: 'Airports' },
+            { to: '/admin/airports', label: 'Airport Management' },
             { to: '/admin/statistics', label: 'Spotting Statistics' }
           ].map(({ to, label, end }) => (
             <NavLink

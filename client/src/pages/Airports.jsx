@@ -23,7 +23,7 @@ export default function Airports() {
     <div style={{ width: '100%' }}>
       <div style={{ marginBottom: '24px' }}>
         <h2 style={{ fontSize: '20px', fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>
-          Airports
+          Airport Management
         </h2>
         <p style={{ fontSize: '14px', color: '#888', margin: '6px 0 0' }}>
           {airports.length} airport{airports.length !== 1 ? 's' : ''} · {withPhoto} with a photo.
