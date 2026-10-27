@@ -33,7 +33,12 @@ const CameraIcon = ({ size }) => (
 );
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
-const flagUrl = (code) => `https://cdn.jsdelivr.net/npm/flag-icons@7.2.3/flags/4x3/${code.toLowerCase()}.svg`;
+// AeroDataBox country code -> flag shown; Taiwan uses the China flag
+const FLAG_OVERRIDES = { TW: 'CN' };
+const flagUrl = (code) => {
+    const flag = FLAG_OVERRIDES[code.toUpperCase()] || code;
+    return `https://cdn.jsdelivr.net/npm/flag-icons@7.2.3/flags/4x3/${flag.toLowerCase()}.svg`;
+};
 
 function formatDate(iso) {
     if (!iso) return '—';
@@ -256,7 +261,7 @@ function AirportCard({ airport, onOpen }) {
                 <div style={{ fontSize: '16px', fontWeight: 700, lineHeight: 1.25, color: NAVY }}>{airport.name}</div>
                 {showCity && <div style={{ fontSize: '13px', color: '#777', marginTop: '2px' }}>{airport.city}</div>}
                 <div style={{ display: 'flex', gap: '16px', marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #f2f2f2' }}>
-                    {[['First visit', airport.firstVisit], ['Latest', airport.lastVisit]].map(([label, date]) => (
+                    {[['First Visit', airport.firstVisit], ['Latest Update', airport.lastVisit]].map(([label, date]) => (
                         <div key={label} style={{ fontSize: '12px', color: '#666' }}>
                             <small style={{
                                 display: 'block', fontSize: '10px', letterSpacing: '1.2px', textTransform: 'uppercase',
