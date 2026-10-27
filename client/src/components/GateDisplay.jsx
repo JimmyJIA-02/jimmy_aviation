@@ -289,7 +289,8 @@ export default function GateDisplay({ spotting, isMobile }) {
                     {/* Aircraft, registration, spot location */}
                     <div style={{
                         display: 'grid',
-                        gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(3, 1fr)',
+                        // aircraft and registration take what they need; the spot's airport name gets the rest
+                        gridTemplateColumns: isMobile ? '1fr 1fr' : 'auto auto minmax(0, 1fr)',
                         borderTop: DIVIDER,
                     }}>
                         <div style={cell}>
@@ -307,7 +308,8 @@ export default function GateDisplay({ spotting, isMobile }) {
                             ...(isMobile ? { gridColumn: '1 / 3', borderTop: DIVIDER } : { borderLeft: DIVIDER }),
                         }}>
                             <small style={smallLabel}>Spotted at</small>
-                            <p style={cellValue}>
+                            {/* long airport names wrap instead of being cut off */}
+                            <p style={{ ...cellValue, whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
                                 {spot?.airportName || '—'}{spot?.iataCode && ` (${spot.iataCode})`}
                             </p>
                         </div>
