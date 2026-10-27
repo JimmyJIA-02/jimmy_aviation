@@ -17,6 +17,12 @@ import java.util.Map;
 @Service
 public class AeroDataBoxService {
 
+    // The plan allows about one request per second. Every call takes the next free slot, so requests
+    // arriving together (e.g. the route map asking for many airports at once) queue instead of failing with 429.
+    private static final long MIN_GAP_MS = 1100;
+    private final Object rateLock = new Object();
+    private long nextSlot = 0;
+
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
     private final String apiKey;
@@ -31,6 +37,24 @@ public class AeroDataBoxService {
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
         this.objectMapper = new ObjectMapper();
+    }
+
+    // Sends at most one request per MIN_GAP_MS across all threads; a 429 waits for a new slot and retries
+    private HttpResponse<String> send(HttpRequest request) throws Exception {
+        HttpResponse<String> response = null;
+        for (int attempt = 0; attempt < 4; attempt++) {
+            long slot;
+            synchronized (rateLock) {
+                slot = Math.max(System.currentTimeMillis(), nextSlot);
+                nextSlot = slot + MIN_GAP_MS;
+            }
+            long wait = slot - System.currentTimeMillis();
+            if (wait > 0) Thread.sleep(wait);
+
+            response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 429) break;
+        }
+        return response;
     }
 
     /**
@@ -58,7 +82,7 @@ public class AeroDataBoxService {
                 .build();
 
         try {
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = send(request);
 
             if (response.statusCode() != 200) {
                 throw new RuntimeException(
@@ -85,7 +109,7 @@ public class AeroDataBoxService {
                 .build();
 
         try {
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = send(request);
 
             if (response.statusCode() == 204 || response.statusCode() == 404) {
                 return Map.of("found", false);
@@ -121,13 +145,7 @@ public class AeroDataBoxService {
                 .build();
 
         try {
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-
-            // the plan allows about one request per second; departure and arrival are often looked up together
-            for (int retry = 0; retry < 3 && response.statusCode() == 429; retry++) {
-                Thread.sleep(1100);
-                response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            }
+            HttpResponse<String> response = send(request);
 
             if (response.statusCode() == 204 || response.statusCode() == 404 || response.statusCode() == 400) {
                 return null;

@@ -41,9 +41,28 @@ function useIsMobile() {
     return isMobile;
 }
 
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+// A code the server can't place answers 404. Anything else (server busy right after a restart,
+// a proxy timeout, a dropped connection) is retried rather than leaving the airport off the map.
+async function lookupAirport(code) {
+    for (let attempt = 1; attempt <= 4; attempt++) {
+        try {
+            const { data } = await api.get(`/airport-info/${code}`, { params: { names: false } });
+            return data.lat != null && data.lon != null
+                ? { lat: data.lat, lon: data.lon, label: data.city || code, continent: data.continent }
+                : null;
+        } catch (err) {
+            if (err.response?.status === 404 || attempt === 4) return null;
+            await sleep(2000 * attempt);
+        }
+    }
+    return null;
+}
+
 // Every departure/arrival value -> { lat, lon, label, continent }, or null if it can't be placed.
-// Codes are looked up all at once; older city names go through geocodeCity one at a time,
-// as before (Nominatim asks for no more than one request at a time).
+// Codes are all requested at once (the server queues its AeroDataBox calls); older city names go
+// through geocodeCity, which paces its Nominatim searches.
 function useResolvedPlaces(valuesKey) {
     const [places, setPlaces] = useState({});
 
@@ -55,11 +74,7 @@ function useResolvedPlaces(valuesKey) {
         };
 
         values.filter(isIataCode).forEach(code => {
-            api.get(`/airport-info/${code}`, { params: { names: false } })
-                .then(({ data }) => store(code, data.lat != null && data.lon != null
-                    ? { lat: data.lat, lon: data.lon, label: data.city || code, continent: data.continent }
-                    : null))
-                .catch(() => store(code, null));
+            lookupAirport(code).then(place => store(code, place));
         });
 
         (async () => {
@@ -93,10 +108,28 @@ function buildModel(spottings, places) {
 
     const airports = {};
     const grouped = new Map();
+    // spottings left off the map, and why
+    const skipped = { unplaced: new Map(), sameAirport: 0, noRoute: 0 };
     for (const s of spottings) {
-        const a = canonical[s.flight?.departureAirport];
-        const b = canonical[s.flight?.arrivalAirport];
-        if (!a || !b || a === b) continue;
+        const dep = s.flight?.departureAirport;
+        const arr = s.flight?.arrivalAirport;
+        if (!dep || !arr) {
+            skipped.noRoute++;
+            continue;
+        }
+        const a = canonical[dep];
+        const b = canonical[arr];
+        if (!a || !b) {
+            // null = looked up but couldn't be placed; undefined = still loading
+            for (const value of [dep, arr]) {
+                if (places[value] === null) skipped.unplaced.set(value, (skipped.unplaced.get(value) || 0) + 1);
+            }
+            continue;
+        }
+        if (a === b) {
+            skipped.sameAirport++;
+            continue;
+        }
         for (const key of [a, b]) {
             if (!airports[key]) airports[key] = { key, ...places[key], count: 0 };
             airports[key].count++;
@@ -121,6 +154,7 @@ function buildModel(spottings, places) {
     return {
         airports,
         routes,
+        skipped,
         maxRoute: d3.max(routes, r => r.count) || 1,
         maxAirport: d3.max(Object.values(airports), a => a.count) || 1,
     };
@@ -424,6 +458,7 @@ export default function RouteMap({ spottings }) {
     const sortedRoutes = [...model.routes].sort((a, b) => b.count - a.count || b.km - a.km);
     const selectedRoute = selected && model.routes.find(r => r.key === selected);
 
+    const missing = spottings.length - d3.sum(model.routes, r => r.count);
     const stats = (() => {
         if (!model.routes.length) return null;
         const airports = Object.values(model.airports);
@@ -465,6 +500,21 @@ export default function RouteMap({ spottings }) {
                     </>
                 )}
             </div>
+
+            {/* Spottings that couldn't be drawn, once everything has loaded */}
+            {loaded === total && missing > 0 && (
+                <p style={{ fontSize: '12px', color: '#9a6b00', margin: '-6px 0 14px' }}>
+                    {missing} of {spottings.length} spottings aren't on the map
+                    {model.skipped.unplaced.size > 0 && (
+                        <> · couldn't place {[...model.skipped.unplaced]
+                            .sort((a, b) => b[1] - a[1])
+                            .map(([value, count]) => `${value} (${count})`)
+                            .join(', ')}</>
+                    )}
+                    {model.skipped.sameAirport > 0 && <> · {model.skipped.sameAirport} with the same departure and arrival</>}
+                    {model.skipped.noRoute > 0 && <> · {model.skipped.noRoute} without a departure or arrival</>}
+                </p>
+            )}
 
             <div style={{
                 display: 'grid',

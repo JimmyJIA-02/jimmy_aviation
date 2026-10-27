@@ -8,6 +8,14 @@ const KNOWN_AIRPORTS = {
     'Ho Chi Minh City': { lat: 10.819, lng: 106.652 }
 };
 
+// Nominatim allows one request per second; searches made close together wait for their turn
+let nextNominatimSlot = 0;
+async function waitForNominatim() {
+    const slot = Math.max(Date.now(), nextNominatimSlot);
+    nextNominatimSlot = slot + 1100;
+    if (slot > Date.now()) await new Promise(resolve => setTimeout(resolve, slot - Date.now()));
+}
+
 export async function geocodeCity(cityName) {
     if (KNOWN_AIRPORTS[cityName]) return KNOWN_AIRPORTS[cityName];
 
@@ -38,6 +46,7 @@ export async function geocodeCity(cityName) {
     }
 
     try {
+        await waitForNominatim();
         const res = await fetch(
             `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cityName + ' airport')}&format=json&limit=1`
         );

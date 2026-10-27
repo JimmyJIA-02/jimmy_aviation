@@ -25,6 +25,7 @@ public class AirportInfoService {
     private final WikidataService wikidataService;
 
     private final Map<String, Optional<AeroDataBoxAirport>> airports = new ConcurrentHashMap<>();
+    private final Map<String, Object> lookupLocks = new ConcurrentHashMap<>();
     // by ICAO; only successful lookups are kept, so a busy Wikidata is retried on the next request
     private final Map<String, List<LocalName>> localNames = new ConcurrentHashMap<>();
     private final Map<String, String> wikidataNames = new ConcurrentHashMap<>();
@@ -52,8 +53,14 @@ public class AirportInfoService {
 
         Optional<AeroDataBoxAirport> airport = airports.get(iataCode);
         if (airport == null) {
-            airport = Optional.ofNullable(aeroDataBoxService.lookupAirport(iataCode));
-            airports.put(iataCode, airport);
+            // one lookup per code: requests arriving together for the same airport wait for the first
+            synchronized (lookupLocks.computeIfAbsent(iataCode, k -> new Object())) {
+                airport = airports.get(iataCode);
+                if (airport == null) {
+                    airport = Optional.ofNullable(aeroDataBoxService.lookupAirport(iataCode));
+                    airports.put(iataCode, airport);
+                }
+            }
         }
         return airport.map(a -> toInfo(a, withLocalNames));
     }
