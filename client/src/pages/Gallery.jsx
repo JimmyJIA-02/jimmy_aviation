@@ -17,10 +17,6 @@ const TABS = [
     { key: 'about', label: 'ABOUT ME' },
 ];
 
-const LUNAR_ANIMALS = ['🐉', '🐍', '🐎', '🐑', '🐒', '🐓', '🐕', '🐖', '🐀', '🐂', '🐅', '🐇'];
-
-const getLunarAnimal = (year) => LUNAR_ANIMALS[(year - 2024) % 12];
-
 function SpottingMap({ locations }) {
     const [resolvedLocations, setResolvedLocations] = useState([]);
 
@@ -110,14 +106,9 @@ export default function Gallery() {
     const [activeTab, setActiveTab] = useState('gallery');
     const [search, setSearch] = useState('');
     const [showFilter, setShowFilter] = useState(false);
-    const [selectedMonth, setSelectedMonth] = useState(null);
-    const [selectedYear, setSelectedYear] = useState(null);
     const [filters, setFilters] = useState({ aircraft: '', airport: '' });
-    const [calendarCollapsed, setCalendarCollapsed] = useState(false);
-    const [likedIds] = useState(new Set());
     const filterRef = useRef(null);
     const [stats, setStats] = useState(null);
-    const [selectedSpottings, setSelectedSpottings] = useState([]);
     const [showBackToTop, setShowBackToTop] = useState(false);
 
     useEffect(() => {
@@ -155,27 +146,6 @@ export default function Gallery() {
         } finally {
             setLoading(false);
         }
-    };
-
-
-    const getMonthGroups = () => {
-        return stats?.monthCounts || {};
-    };
-
-    const getMonthRange = () => {
-        const now = new Date();
-        const start = new Date(2025, 7, 1); // August 2025 (month is 0-indexed)
-        const months = [];
-
-        while (start <= now) {
-            const year = start.getFullYear();
-            const month = start.getMonth();
-            const key = `${year}-${String(month + 1).padStart(2, '0')}`;
-            months.push({ key, year, month });
-            start.setMonth(start.getMonth() + 1);
-        }
-
-        return months;
     };
 
     const aircraft = stats?.filters?.aircraft ? [...new Map(stats.filters.aircraft.map(a => [a.icaoCode, a])).values()] : [];
@@ -317,22 +287,6 @@ export default function Gallery() {
     }
 
     if (activeTab === 'logbook') {
-        const monthGroups = getMonthGroups();
-        const months = getMonthRange();
-        const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-        const yearGroups = {};
-        months.forEach(m => {
-            if (!yearGroups[m.year]) yearGroups[m.year] = [];
-            yearGroups[m.year].push(m);
-        });
-
-        // Count total spottings per year
-        const yearCounts = {};
-        Object.entries(yearGroups).forEach(([year, yearMonths]) => {
-            yearCounts[year] = yearMonths.reduce((sum, m) => sum + (monthGroups[m.key] || 0), 0);
-        });
-
         return (
             <div style={{ minHeight: '100vh', fontFamily: "'DM Sans', sans-serif", background: '#fff' }}>
                 <NavBar activeTab={activeTab} setActiveTab={setActiveTab} />
@@ -356,279 +310,6 @@ export default function Gallery() {
                         letterSpacing: '-0.3px',
                     }}>Spotting Routes</h2>
                     <RouteMap spottings={spottings} />
-
-                    <h2 style={{
-                        fontSize: '18px',
-                        fontWeight: 700,
-                        color: '#1a1a2e',
-                        marginBottom: '16px',
-                        marginTop: '12px',
-                        letterSpacing: '-0.3px',
-                    }}>Spotting Timeline</h2>
-
-                    {/* Collapsed bar — shown when a month is selected */}
-                    {calendarCollapsed && selectedMonth && (
-                        <div
-                            onClick={() => {
-                                setCalendarCollapsed(false);
-                                setSelectedMonth(null);
-                                setSelectedSpottings([]);
-                            }}
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                padding: '14px 20px',
-                                background: '#6e6e6e',
-                                borderRadius: '10px',
-                                cursor: 'pointer',
-                                marginBottom: '24px',
-                                transition: 'all 0.3s ease',
-                            }}
-                        >
-                            <span style={{ color: '#fff', fontSize: '15px', fontWeight: 600 }}>
-                                ✈️ {MONTH_NAMES[parseInt(selectedMonth.slice(5)) - 1]} {selectedMonth.slice(0, 4)}
-                                <span style={{ color: 'rgba(255,255,255,0.6)', fontWeight: 400, marginLeft: '8px' }}>
-                                    {selectedSpottings.length} spotting{selectedSpottings.length !== 1 ? 's' : ''}
-                                </span>
-                            </span>
-                            <span style={{ color: 'rgb(255, 255, 255)', fontSize: '13px' }}>
-                                ▼ Show months
-                            </span>
-                        </div>
-                    )}
-
-                    {/* Calendar content — hidden when month is selected */}
-                    <div style={{
-                        maxHeight: calendarCollapsed ? '0px' : '2000px',
-                        overflow: 'hidden',
-                        transition: 'max-height 0.5s ease, opacity 0.3s ease',
-                        opacity: calendarCollapsed ? 0 : 1,
-                    }}>
-
-                        {/* Level 1 — Year circles (no year selected) */}
-                        {!selectedYear && (
-                            <>
-                                <div style={{
-                                    display: 'flex',
-                                    justifyContent: 'center',
-                                    gap: '40px',
-                                    flexWrap: 'wrap',
-                                    marginBottom: '24px',
-                                }}>
-                                    {Object.entries(yearGroups).sort(([a], [b]) => b - a).map(([year]) => {
-                                        const count = yearCounts[year] || 0;
-                                        const hasSpottings = count > 0;
-
-                                        return (
-                                            <div
-                                                key={year}
-                                                onClick={() => {
-                                                    if (hasSpottings) setSelectedYear(year);
-                                                }}
-                                                style={{
-                                                    display: 'flex',
-                                                    flexDirection: 'column',
-                                                    alignItems: 'center',
-                                                    gap: '10px',
-                                                    cursor: hasSpottings ? 'pointer' : 'default',
-                                                    opacity: hasSpottings ? 1 : 0.4,
-                                                    padding: '12px',
-                                                }}
-                                            >
-                                                <div style={{
-                                                    width: '88px',
-                                                    height: '88px',
-                                                    borderRadius: '50%',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    background: hasSpottings ? '#f8f8fa' : '#fafafa',
-                                                    border: '1.5px solid #eee',
-                                                    transition: 'all 0.2s',
-                                                }}>
-                                                    <span style={{
-                                                        fontSize: '22px',
-                                                        fontWeight: 700,
-                                                        color: hasSpottings ? '#1a1a1a' : '#ccc',
-                                                    }}>
-                                                        {count}
-                                                    </span>
-                                                </div>
-                                                <span style={{
-                                                    fontSize: '16px',
-                                                    fontWeight: 700,
-                                                    color: '#1a1a2e',
-                                                }}>
-                                                    {year} {getLunarAnimal(Number(year))}
-                                                </span>
-                                                {hasSpottings && (
-                                                    <span style={{ fontSize: '14px', marginTop: '-6px' }}>✈️</span>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                                <p style={{ textAlign: 'center', color: '#888', fontSize: '14px' }}>
-                                    Click a year to explore
-                                </p>
-                            </>
-                        )}
-
-                        {/* Level 2 — Month circles (year selected) */}
-                        {selectedYear && (
-                            <>
-                                <div style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '12px',
-                                    marginBottom: '24px',
-                                    paddingBottom: '12px',
-                                    borderBottom: '2px solid #eee',
-                                }}>
-                                    <button
-                                        onClick={() => setSelectedYear(null)}
-                                        style={{
-                                            background: 'none',
-                                            border: 'none',
-                                            cursor: 'pointer',
-                                            fontSize: '18px',
-                                            color: '#888',
-                                            padding: '4px 8px',
-                                            borderRadius: '6px',
-                                            transition: 'background 0.15s',
-                                        }}
-                                        onMouseEnter={(e) => e.currentTarget.style.background = '#f0f0f0'}
-                                        onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
-                                    >
-                                        ←
-                                    </button>
-                                    <div style={{
-                                        fontSize: '20px',
-                                        fontWeight: 200,
-                                        color: '#1a1a2e',
-                                        margin: 0,
-                                    }}>
-                                        {selectedYear}
-                                        <span style={{ marginLeft: '10px' }}>
-                                            {getLunarAnimal(Number(selectedYear))}
-                                        </span>
-                                        <span style={{ fontSize: '14px', color: '#888', marginLeft: '12px' }}>
-                                            {yearCounts[selectedYear] || 0} spottings
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <div style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
-                                    gap: '20px',
-                                }}>
-                                    {[...(yearGroups[selectedYear] || [])].reverse().map(({ key, month }) => {
-                                        const count = monthGroups[key] || 0;
-                                        const hasSpottings = count > 0;
-                                        const isSelected = selectedMonth === key;
-
-                                        return (
-                                            <div
-                                                key={key}
-                                                onClick={async () => {
-                                                    if (hasSpottings) {
-                                                        if (isSelected) {
-                                                            setSelectedMonth(null);
-                                                            setCalendarCollapsed(false);
-                                                            setSelectedSpottings([]);
-                                                        } else {
-                                                            setSelectedMonth(key);
-                                                            setCalendarCollapsed(true);
-                                                            try {
-                                                                const res = await api.get('/spotting/filter/month/' + key);
-                                                                setSelectedSpottings(res.data);
-                                                            } catch (err) {
-                                                                console.error('Failed to fetch month spottings', err);
-                                                            }
-                                                        }
-                                                    }
-                                                }}
-                                                style={{
-                                                    display: 'flex',
-                                                    flexDirection: 'column',
-                                                    alignItems: 'center',
-                                                    gap: '8px',
-                                                    cursor: hasSpottings ? 'pointer' : 'default',
-                                                    opacity: hasSpottings ? 1 : 0.4,
-                                                    padding: '8px',
-                                                }}
-                                            >
-                                                <div style={{
-                                                    width: '72px',
-                                                    height: '72px',
-                                                    borderRadius: '50%',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    background: isSelected ? '#1a1a2e' : hasSpottings ? '#f8f8fa' : '#fafafa',
-                                                    border: isSelected ? '2px solid #1a1a2e' : '1.5px solid #eee',
-                                                    transition: 'all 0.2s',
-                                                    boxShadow: isSelected ? '0 4px 12px rgba(26,26,46,0.2)' : 'none',
-                                                }}>
-                                                    <span style={{
-                                                        fontSize: '18px',
-                                                        fontWeight: 700,
-                                                        color: isSelected ? '#fff' : hasSpottings ? '#1a1a1a' : '#ccc',
-                                                    }}>
-                                                        {count}
-                                                    </span>
-                                                </div>
-                                                <span style={{
-                                                    fontSize: '15px',
-                                                    fontWeight: 600,
-                                                    color: '#000000',
-                                                    letterSpacing: '0.5px',
-                                                }}>
-                                                    {MONTH_NAMES[month]}
-                                                </span>
-                                                {hasSpottings && (
-                                                    <span style={{ fontSize: '14px', marginTop: '-4px' }}>✈️</span>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-
-                                {!selectedMonth && (
-                                    <p style={{ textAlign: 'center', color: '#888', fontSize: '14px', marginTop: '20px' }}>
-                                        Click a month to see spottings
-                                    </p>
-                                )}
-                            </>
-                        )}
-                    </div>
-
-                    {/* Level 3 — Selected month spottings */}
-                    {selectedMonth && (
-                        <div style={{ marginTop: '20px' }}>
-                            <h3 style={{
-                                fontSize: '18px', fontWeight: 600, marginBottom: '20px',
-                                letterSpacing: '-0.2px', color: '#333',
-                            }}>
-                                {MONTH_NAMES[parseInt(selectedMonth.slice(5)) - 1]} {selectedMonth.slice(0, 4)}
-                                <span style={{ color: '#888', fontWeight: 400, marginLeft: '8px', fontSize: '14px' }}>
-                                    {selectedSpottings.length} spotting{selectedSpottings.length !== 1 ? 's' : ''}
-                                </span>
-                            </h3>
-                            <div style={{
-                                display: 'grid',
-                                gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-                                gap: '20px',
-                            }}>
-                                {selectedSpottings.map(s => (
-                                    <SpottingCard key={s.id} spotting={s} onLike={handleLike} getPhotoUrl={getPhotoUrl} likedIds={likedIds} />
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
                 </div>
                 <footer style={{
                     textAlign: 'center',

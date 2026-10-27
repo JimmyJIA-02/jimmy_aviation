@@ -33,11 +33,6 @@ public class GalleryController {
         return ResponseEntity.ok(galleryService.getAllSpottings());
     }
 
-    @GetMapping("/spotting/filter/month/{month}")
-    public ResponseEntity<List<Spotting>> getByMonth(@PathVariable String month) {
-        return ResponseEntity.ok(galleryService.getByMonth(month));
-    }
-
     // Get a specific spotting by ID, maybe used for a detailed view page
     @GetMapping("/spotting/{id}")
     public ResponseEntity<Spotting> getSpotting(@PathVariable UUID id) {

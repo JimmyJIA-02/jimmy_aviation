@@ -17,7 +17,6 @@ public interface SpottingRepository extends JpaRepository<Spotting, UUID> {
     List<Spotting> findByAircraftId(UUID aircraftId);
     List<Spotting> findBySpotLocation(UUID AirportId);
     List<Spotting> findBySpotDate(LocalDate spotDate);
-    List<Spotting> findBySpotDateBetween(LocalDate start, LocalDate end);
 
     @Modifying
     @Query("UPDATE Spotting s SET s.likes = s.likes + 1 WHERE s.id = :id")

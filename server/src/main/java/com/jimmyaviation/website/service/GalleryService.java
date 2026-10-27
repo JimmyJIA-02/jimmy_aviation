@@ -17,7 +17,6 @@ import java.util.stream.Collectors;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.Map;
-import java.time.LocalDate;
 
 @Service
 @RequiredArgsConstructor
@@ -118,11 +117,5 @@ public class GalleryService {
                 "filters", Map.of("airlines", airlines, "aircraft", aircraft, "airports", airports),
                 "total", all.size()
         );
-    }
-
-    public List<Spotting> getByMonth(String month) {
-        LocalDate start = LocalDate.parse(month + "-01");
-        LocalDate end = start.plusMonths(1);
-        return spottingRepository.findBySpotDateBetween(start, end.minusDays(1));
     }
 }
