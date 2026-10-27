@@ -1,6 +1,8 @@
 package com.jimmyaviation.website.controller;
 
+import com.jimmyaviation.website.dto.SpottingLocation;
 import com.jimmyaviation.website.entity.*;
+import com.jimmyaviation.website.service.AirportService;
 import com.jimmyaviation.website.service.GalleryService;
 
 import lombok.RequiredArgsConstructor;
@@ -22,10 +24,17 @@ import java.util.Set;
 public class GalleryController {
 
     private final GalleryService galleryService;
+    private final AirportService airportService;
 
     @GetMapping("/spotting/stats")
     public ResponseEntity<Map<String, Object>> getStats() {
         return ResponseEntity.ok(galleryService.getStats());
+    }
+
+    // airports spotted from, for the Spotting Locations section
+    @GetMapping("/locations")
+    public ResponseEntity<List<SpottingLocation>> getSpottingLocations() {
+        return ResponseEntity.ok(airportService.spottingLocations());
     }
 
     @GetMapping("/spotting/all")

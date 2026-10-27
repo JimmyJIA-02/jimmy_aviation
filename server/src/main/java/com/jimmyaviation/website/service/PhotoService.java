@@ -10,9 +10,14 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import java.io.IOException;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -53,6 +58,40 @@ public class PhotoService {
 
         // photo URL
         return key;
+    }
+
+    // Stores a photo under a fixed key, replacing whatever was there (e.g. an airport's photo)
+    public void putPhoto(String key, MultipartFile file) {
+        try {
+            PutObjectRequest putRequest = PutObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(key)
+                    .contentType(file.getContentType())
+                    .build();
+
+            s3Client.putObject(putRequest, RequestBody.fromBytes(file.getBytes()));
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to upload photo", e);
+        }
+    }
+
+    /**
+     * @return the photo's ETag, which changes whenever it's replaced, or empty if there's no photo
+     * @throws RuntimeException if S3 can't be reached
+     */
+    public Optional<String> photoVersion(String key) {
+        try {
+            HeadObjectResponse head = s3Client.headObject(HeadObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(key)
+                    .build());
+            return Optional.of(head.eTag().replace("\"", ""));
+        } catch (NoSuchKeyException e) {
+            return Optional.empty();
+        } catch (S3Exception e) {
+            if (e.statusCode() == 404) return Optional.empty();
+            throw e;
+        }
     }
 
     public ResponseInputStream<GetObjectResponse> getPhoto(String key) {

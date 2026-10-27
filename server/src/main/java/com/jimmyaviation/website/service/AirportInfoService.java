@@ -81,6 +81,7 @@ public class AirportInfoService {
                 isBlank(shortName) ? null : shortName,
                 a.fullName(),
                 a.country() != null ? a.country().name() : null,
+                a.country() != null ? a.country().code() : null,
                 a.continent() != null ? a.continent().name() : null,
                 a.location() != null ? a.location().lat() : null,
                 a.location() != null ? a.location().lon() : null,

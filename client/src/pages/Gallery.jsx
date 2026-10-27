@@ -3,102 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import aboutContent from '../assets/about.md?raw';
-import { MapContainer, TileLayer, Marker, Tooltip } from 'react-leaflet';
-import L from 'leaflet';
 
 
 import api from '../api/axios';
 import RouteMap from '../components/RouteMap';
-import { geocodeCity } from '../utils/geocode';
+import SpottingLocations from '../components/SpottingLocations';
 
 const TABS = [
     { key: 'gallery', label: 'GALLERY' },
     { key: 'logbook', label: 'LOGBOOK' },
     { key: 'about', label: 'ABOUT ME' },
 ];
-
-function SpottingMap({ locations }) {
-    const [resolvedLocations, setResolvedLocations] = useState([]);
-
-    useEffect(() => {
-        const resolve = async () => {
-            const results = [];
-            for (const loc of locations) {
-                const coords = await geocodeCity(loc.city || loc.name);
-                if (coords) {
-                    results.push({ ...loc, coords });
-                }
-            }
-            setResolvedLocations(results);
-        };
-        resolve();
-    }, [locations]);
-
-    if (resolvedLocations.length === 0) return null;
-
-    const center = [resolvedLocations[0].coords.lat, resolvedLocations[0].coords.lng];
-    const maxCount = Math.max(...resolvedLocations.map(l => l.count));
-
-    return (
-        <div style={{
-            borderRadius: '12px',
-            overflow: 'hidden',
-            border: '1px solid #eee',
-            marginBottom: '32px',
-        }}>
-            <MapContainer
-                center={center}
-                zoom={4}
-                style={{ height: '360px', width: '100%' }}
-                scrollWheelZoom={false}
-            >
-                <TileLayer
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
-                {resolvedLocations.map(loc => {
-                    const size = 24 + (loc.count / maxCount) * 40;
-
-                    const icon = L.divIcon({
-                        className: '',
-                        html: `<div style="
-                            width: ${size}px;
-                            height: ${size}px;
-                            border-radius: 50%;
-                            background: #1a1a2e;
-                            opacity: 0.85;
-                            color: #fff;
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                            font-size: ${size > 40 ? 14 : 12}px;
-                            font-weight: 700;
-                            font-family: 'DM Sans', sans-serif;
-                            border: 2px solid #fff;
-                            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-                        ">${loc.count}</div>`,
-                        iconSize: [size, size],
-                        iconAnchor: [size / 2, size / 2],
-                    });
-
-                    return (
-                        <Marker
-                            key={loc.iata}
-                            position={[loc.coords.lat, loc.coords.lng]}
-                            icon={icon}
-                        >
-                            <Tooltip direction="top" offset={[0, -size / 2]}>
-                                <div style={{ fontFamily: "'DM Sans', sans-serif", textAlign: 'center' }}>
-                                    <strong>{loc.name} ({loc.iata})</strong>
-                                </div>
-                            </Tooltip>
-                        </Marker>
-                    );
-                })}
-            </MapContainer>
-        </div>
-    );
-}
 
 export default function Gallery() {
     const [spottings, setSpottings] = useState([]);
@@ -167,10 +82,6 @@ export default function Gallery() {
         return url.startsWith('/api') ? url : `/api/photo/${url}`;
     };
 
-    const getLocationCounts = () => {
-        return stats?.locations || [];
-    };
-
     const filtered = spottings
         .filter(s => {
             if (filters.aircraft && s.aircraft?.icaoCode !== filters.aircraft) return false;
@@ -190,6 +101,13 @@ export default function Gallery() {
         .sort((a, b) => {
             return (b.spotDate || '').localeCompare(a.spotDate || '');
         });
+
+    const openAirport = (iata) => {
+        const airport = airports.find(a => a.iata === iata);
+        if (airport) setFilters({ aircraft: '', airport: airport.id });
+        setActiveTab('gallery');
+        window.scrollTo({ top: 0 });
+    };
 
     const clearFilters = () => {
         setFilters({ aircraft: '', airport: '' });
@@ -300,7 +218,7 @@ export default function Gallery() {
                         letterSpacing: '-0.3px',
                     }}>Spotting Locations</h2>
 
-                    <SpottingMap locations={getLocationCounts()} />
+                    <SpottingLocations onOpenAirport={openAirport} />
 
                     <h2 style={{
                         fontSize: '18px',

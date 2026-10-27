@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard';
 import SpottingForm from './pages/SpottingForm';
 import Planner from './pages/Planner';
 import Statistics from './pages/Statistics';
+import Airports from './pages/Airports';
 import Gallery from './pages/Gallery';
 import SpottingDetail from './pages/SpottingDetail';
 
@@ -27,6 +28,7 @@ function AppRoutes() {
         <Route path="new" element={<SpottingForm />} />
         <Route path="planner" element={<Planner />} />
         <Route path="statistics" element={<Statistics />} />
+        <Route path="airports" element={<Airports />} />
         <Route path="edit/:id" element={<SpottingForm />} />
       </Route>
       <Route path="*" element={<Navigate to="/" />} />
