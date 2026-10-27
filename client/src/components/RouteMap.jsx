@@ -29,6 +29,34 @@ function formatDate(iso) {
     return `${d} ${MONTHS[Number(m) - 1]} ${y}`;
 }
 
+function formatRange(spottings) {
+    const dates = spottings.map(s => s.spotDate).filter(Boolean).sort();
+    if (!dates.length) return '—';
+    const first = formatDate(dates[0]), last = formatDate(dates[dates.length - 1]);
+    return first === last ? first : `${first} – ${last}`;
+}
+
+const photoSrc = (url) => !url ? null : url.startsWith('/api') ? url : `/api/photo/${url}`;
+
+// One card per registration + flight number on a route, whatever the day; newest first.
+// Spottings missing either stay on their own.
+function groupByFlight(spottings) {
+    const groups = new Map();
+    for (const s of spottings) {
+        const reg = (s.registration || '').trim().toUpperCase();
+        const flight = (s.flight?.flightNumber || '').trim().toUpperCase();
+        const key = reg && flight ? `${reg}|${flight}` : `id|${s.id}`;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(s);
+    }
+    return [...groups.entries()]
+        .map(([key, list]) => {
+            const sorted = [...list].sort((a, b) => (b.spotDate || '').localeCompare(a.spotDate || ''));
+            return { key, spottings: sorted, latest: sorted[0] };
+        })
+        .sort((a, b) => (b.latest.spotDate || '').localeCompare(a.latest.spotDate || ''));
+}
+
 function useIsMobile() {
     const [isMobile, setIsMobile] = useState(window.innerWidth < 760);
 
@@ -299,6 +327,8 @@ export default function RouteMap({ spottings }) {
     const [size, setSize] = useState({ width: 0, height: 0 });
     const [world, setWorld] = useState(null);
     const [hint, setHint] = useState(false);
+    // the stack opened on the selected route; ignored once another route is picked
+    const [openGroup, setOpenGroup] = useState(null);
     const active = hover || selected;
 
     const cardRef = useRef(null);
@@ -399,7 +429,10 @@ export default function RouteMap({ spottings }) {
         const v = view.current;
         if (!v.path) return;
         const svg = d3.select(svgRef.current);
-        drawData(svg, v, model, setHover, key => setSelected(prev => prev === key ? null : key));
+        drawData(svg, v, model, setHover, key => {
+            setSelected(prev => prev === key ? null : key);
+            setOpenGroup(null);
+        });
         updateScaled(svg, v, model, latest.current.active);
         applyHighlight(svg, model, latest.current.active);
     }, [model, size]);
@@ -450,13 +483,20 @@ export default function RouteMap({ spottings }) {
         const zoom = view.current.zoom;
         if (zoom) d3.select(svgRef.current).transition().duration(400).call(zoom.transform, d3.zoomIdentity);
     };
-    const toggleSelected = (key) => setSelected(prev => prev === key ? null : key);
+    const toggleSelected = (key) => {
+        setSelected(prev => prev === key ? null : key);
+        setOpenGroup(null);
+    };
 
     const total = valuesKey ? valuesKey.split('\n').length : 0;
     const loaded = valuesKey ? valuesKey.split('\n').filter(v => v in places).length : 0;
     const label = (key) => model.airports[key]?.label || key;
     const sortedRoutes = [...model.routes].sort((a, b) => b.count - a.count || b.km - a.km);
     const selectedRoute = selected && model.routes.find(r => r.key === selected);
+    const groups = selectedRoute ? groupByFlight(selectedRoute.spottings) : [];
+    const shownGroup = openGroup?.route === selected ? groups.find(g => g.key === openGroup.key) : null;
+    const aircraftCount = selectedRoute
+        ? new Set(selectedRoute.spottings.map(s => (s.registration || '').trim().toUpperCase() || s.id)).size : 0;
 
     const missing = spottings.length - d3.sum(model.routes, r => r.count);
     const stats = (() => {
@@ -613,26 +653,55 @@ export default function RouteMap({ spottings }) {
             {selectedRoute && (
                 <div ref={detailRef} style={{ marginTop: '16px', border: '1px solid #eee', borderRadius: '12px', padding: '16px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
-                        <div>
-                            <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: NAVY }}>
-                                {label(selectedRoute.origin)} ↔ {label(selectedRoute.home)}
-                            </h3>
-                            <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#888' }}>
-                                {selectedRoute.origin} – {selectedRoute.home} · {formatKm(selectedRoute.km)}
-                                {' · '}{selectedRoute.count} spotting{selectedRoute.count > 1 ? 's' : ''}
-                            </p>
-                        </div>
-                        <button onClick={() => setSelected(null)} aria-label="Close" style={{
+                        {shownGroup ? (
+                            <div>
+                                <button onClick={() => setOpenGroup(null)} style={{
+                                    background: 'none', border: 0, padding: 0, marginBottom: '6px', cursor: 'pointer',
+                                    fontSize: '12px', fontWeight: 600, color: ACCENT, fontFamily: "'DM Sans', sans-serif",
+                                }}>
+                                    ← {label(selectedRoute.origin)} ↔ {label(selectedRoute.home)}
+                                </button>
+                                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: NAVY }}>
+                                    {shownGroup.latest.registration} · {shownGroup.latest.flight?.flightNumber}
+                                    <span style={{ fontSize: '14px', fontWeight: 500, color: '#999' }}>
+                                        {shownGroup.latest.airline?.airlineName && ` · ${shownGroup.latest.airline.airlineName}`}
+                                        {shownGroup.latest.aircraft?.icaoCode && ` · ${shownGroup.latest.aircraft.icaoCode}`}
+                                    </span>
+                                </h3>
+                                <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#888' }}>
+                                    {shownGroup.spottings.length} spottings
+                                    {' · '}{shownGroup.latest.flight?.departureAirport} → {shownGroup.latest.flight?.arrivalAirport}
+                                    {' · '}{formatRange(shownGroup.spottings)}
+                                </p>
+                            </div>
+                        ) : (
+                            <div>
+                                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: NAVY }}>
+                                    {label(selectedRoute.origin)} ↔ {label(selectedRoute.home)}
+                                </h3>
+                                <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#888' }}>
+                                    {selectedRoute.origin} – {selectedRoute.home} · {formatKm(selectedRoute.km)}
+                                    {' · '}{selectedRoute.count} spotting{selectedRoute.count > 1 ? 's' : ''}
+                                    {' of '}{aircraftCount} aircraft
+                                </p>
+                            </div>
+                        )}
+                        <button onClick={() => toggleSelected(selected)} aria-label="Close" style={{
                             background: 'none', border: 0, fontSize: '18px', color: '#999', cursor: 'pointer', padding: '0 4px',
                         }}>✕</button>
                     </div>
                     <div style={{
                         display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: '12px', marginTop: '14px',
                     }}>
-                        {[...selectedRoute.spottings]
-                            .sort((a, b) => (b.spotDate || '').localeCompare(a.spotDate || ''))
-                            .map(s => (
-                                <RouteCard key={s.id} spotting={s} onOpen={() => navigate(`/spotting/${s.id}`)} />
+                        {shownGroup
+                            ? shownGroup.spottings.map(s => (
+                                <RouteCard key={s.id} spotting={s} showPhoto onOpen={() => navigate(`/spotting/${s.id}`)} />
+                            ))
+                            : groups.map(g => (
+                                <RouteCard key={g.key} spotting={g.latest} stack={g.spottings}
+                                    onOpen={() => g.spottings.length > 1
+                                        ? setOpenGroup({ route: selected, key: g.key })
+                                        : navigate(`/spotting/${g.latest.id}`)} />
                             ))}
                     </div>
                 </div>
@@ -641,30 +710,53 @@ export default function RouteMap({ spottings }) {
     );
 }
 
-// The airline's logo as a faded watermark on a light wash of its colour
-function RouteCard({ spotting, onOpen }) {
+// two card edges peeking out behind a stack
+const STACK_SHADOW = '3px 3px 0 -1px #fff, 3px 3px 0 0 #e3e3e3, 6px 6px 0 -1px #fff, 6px 6px 0 0 #ececec';
+
+// The airline's logo as a faded watermark on a light wash of its colour. With `stack`, the card stands for
+// several spottings of one aircraft and flight; with `showPhoto`, it shows the spotting's own photo instead.
+function RouteCard({ spotting, stack, showPhoto, onOpen }) {
     const icao = spotting.airline?.icaoCode;
     const logo = useAirlineLogo(icao);
     const [hovered, setHovered] = useState(false);
     const [r, g, b] = logo.rgb || [135, 150, 173];
     const brand = `rgb(${r},${g},${b})`;
+    const many = stack?.length > 1;
+    const photo = showPhoto && photoSrc(spotting.photoUrl);
+    const lift = hovered ? '0 6px 16px rgba(0,0,0,.08)' : null;
 
     return (
         <a href={`/spotting/${spotting.id}`}
             onClick={(e) => { e.preventDefault(); onOpen(); }}
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
+            title={many ? `Show all ${stack.length} spottings of ${spotting.registration} as ${spotting.flight?.flightNumber}` : undefined}
             style={{
                 textDecoration: 'none', color: 'inherit', border: '1px solid #eee', borderRadius: '10px', overflow: 'hidden',
+                background: '#fff', margin: many ? '0 6px 6px 0' : 0,
                 transform: hovered ? 'translateY(-2px)' : 'none',
-                boxShadow: hovered ? '0 6px 16px rgba(0,0,0,.08)' : 'none',
+                boxShadow: [many && STACK_SHADOW, lift].filter(Boolean).join(', ') || 'none',
                 transition: 'transform .15s, box-shadow .15s',
             }}>
             <div style={{
-                aspectRatio: '16 / 10', position: 'relative', overflow: 'hidden', color: NAVY,
+                aspectRatio: '16 / 10', position: 'relative', overflow: 'hidden', color: NAVY, borderRadius: '10px 10px 0 0',
                 background: `linear-gradient(135deg, color-mix(in srgb, ${brand} 6%, #fff), color-mix(in srgb, ${brand} 18%, #fff))`,
             }}>
-                {logo.status === 'ok' && (
+                {photo && (
+                    <>
+                        <img src={photo} alt={`${spotting.registration || 'Aircraft'} spotted ${formatDate(spotting.spotDate)}`}
+                            loading="lazy" style={{
+                                position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
+                                transform: hovered ? 'scale(1.03)' : 'none', transition: 'transform .3s',
+                            }} />
+                        {/* keeps the airline name and registration readable over the photo */}
+                        <div style={{
+                            position: 'absolute', inset: 0, pointerEvents: 'none',
+                            background: 'linear-gradient(rgba(0,0,0,.35), transparent 35%, transparent 55%, rgba(0,0,0,.55))',
+                        }} />
+                    </>
+                )}
+                {!photo && logo.status === 'ok' && (
                     // the whole logo, uncut and no bigger than its 90px source so it stays sharp
                     <img src={airlineLogoUrl(icao)} alt="" style={{
                         position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)',
@@ -673,23 +765,33 @@ function RouteCard({ spotting, onOpen }) {
                     }} />
                 )}
                 <small style={{
-                    position: 'absolute', top: '9px', left: '10px', right: '10px', fontSize: '10px', letterSpacing: '1px',
-                    fontWeight: 700, color: `color-mix(in srgb, ${brand} 75%, ${NAVY})`,
+                    position: 'absolute', top: '9px', left: '10px', right: many ? '86px' : '10px', fontSize: '10px', letterSpacing: '1px',
+                    fontWeight: 700, color: photo ? '#fff' : `color-mix(in srgb, ${brand} 75%, ${NAVY})`,
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                 }}>
                     {(spotting.airline?.airlineName || '').toUpperCase()}
                 </small>
                 <span style={{
                     position: 'absolute', left: '10px', bottom: '8px', fontSize: '18px', fontWeight: 800, letterSpacing: '1px',
+                    color: photo ? '#fff' : NAVY,
                 }}>
                     {spotting.registration || '—'}
                 </span>
+                {many && (
+                    <span style={{
+                        position: 'absolute', right: '8px', top: '6px', fontSize: '10px', fontWeight: 700, letterSpacing: '.5px',
+                        background: NAVY, color: '#fff', borderRadius: '999px', padding: '3px 8px',
+                    }}>
+                        {stack.length} spottings
+                    </span>
+                )}
             </div>
             <div style={{ padding: '8px 10px 10px', fontSize: '12px', color: '#777', lineHeight: 1.5 }}>
                 <b style={{ color: NAVY, fontSize: '13px' }}>{spotting.flight?.flightNumber || '—'}</b>
                 {spotting.aircraft?.icaoCode && ` · ${spotting.aircraft.icaoCode}`}
                 <br />
-                {formatDate(spotting.spotDate)} · {spotting.flight?.departureAirport} → {spotting.flight?.arrivalAirport}
+                {many ? formatRange(stack) : formatDate(spotting.spotDate)}
+                {' · '}{spotting.flight?.departureAirport} → {spotting.flight?.arrivalAirport}
             </div>
         </a>
     );
