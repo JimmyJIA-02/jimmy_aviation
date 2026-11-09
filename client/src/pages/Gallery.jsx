@@ -261,7 +261,8 @@ export default function Gallery() {
                 <div style={{
                     display: 'flex', alignItems: 'center',
                     border: '1.5px solid #ddd', borderRadius: '24px',
-                    padding: '8px 16px', width: '280px',
+                    // wide enough for the whole placeholder; on a phone it takes the row instead
+                    padding: '8px 16px', width: '400px', maxWidth: '100%', boxSizing: 'border-box',
                 }}>
                     <span style={{ color: '#888', marginRight: '8px', fontSize: '16px' }}>🔍</span>
                     <input
