@@ -74,6 +74,24 @@ public class AirportService {
                 .toList();
     }
 
+    // airports are only created here; the spotting form just picks one by its IATA code
+    public AirportView createAirport(Map<String, String> details) {
+        String iata = required(details, "iataCode").toUpperCase();
+        if (!isValidIata(iata)) {
+            throw new IllegalArgumentException("Use the 3-letter IATA code, e.g. MEL");
+        }
+        if (airportRepository.findFirstByIataCodeIgnoreCase(iata).isPresent()) {
+            throw new IllegalArgumentException(iata + " is already in your airports");
+        }
+        Airport airport = new Airport();
+        airport.setIataCode(iata);
+        airport.setAirportName(required(details, "airportName"));
+        airport.setCity(required(details, "city"));
+        airport.setCountry(required(details, "country"));
+        airportRepository.save(airport);
+        return toView(airport, 0);
+    }
+
     public AirportView updateDetails(UUID id, Map<String, String> updates) {
         Airport airport = find(id);
         if (updates.containsKey("airportName")) airport.setAirportName(required(updates, "airportName"));

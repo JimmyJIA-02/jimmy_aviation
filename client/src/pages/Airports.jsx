@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../api/axios';
+import { normalizeCountry } from '../utils/geo';
 
 export default function Airports() {
   const [airports, setAirports] = useState([]);
@@ -37,6 +38,8 @@ export default function Airports() {
           borderRadius: '6px', fontSize: '13px', marginBottom: '20px',
         }}>{error}</div>
       )}
+
+      <AddAirport onAdded={(airport) => setAirports(prev => [airport, ...prev])} />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {airports.map(a => <AirportRow key={a.id} airport={a} onChange={replace} />)}
@@ -148,7 +151,8 @@ function AirportRow({ airport, onChange }) {
           <Field label="City" value={details.city}
             onChange={(v) => setDetails({ ...details, city: v })} />
           <Field label="Country" value={details.country}
-            onChange={(v) => setDetails({ ...details, country: v })} />
+            onChange={(v) => setDetails({ ...details, country: v })}
+            onBlur={() => setDetails(d => ({ ...d, country: normalizeCountry(d.country) }))} />
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: 'auto', flexWrap: 'wrap' }}>
@@ -175,13 +179,67 @@ function AirportRow({ airport, onChange }) {
   );
 }
 
-function Field({ label, value, onChange }) {
+// The only place airports are created; spottings then pick them by IATA code
+function AddAirport({ onAdded }) {
+  const empty = { iataCode: '', airportName: '', city: '', country: '' };
+  const [details, setDetails] = useState(empty);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState(null);
+
+  const complete = Object.values(details).every(v => v.trim());
+
+  const add = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await api.post('/admin/airports', { ...details, country: normalizeCountry(details.country) });
+      onAdded(res.data);
+      setDetails(empty);
+      setMessage({ ok: true, text: `${res.data.iataCode} added` });
+    } catch (err) {
+      setMessage({ ok: false, text: err.response?.data?.message || 'Something went wrong' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <label style={{ flex: 1, minWidth: '150px' }}>
+    <form onSubmit={add} style={{
+      background: '#fff', borderRadius: '8px', border: '1px solid #eee', padding: '16px', marginBottom: '20px',
+    }}>
+      <h3 style={{ fontSize: '14px', fontWeight: 700, margin: '0 0 12px' }}>Add airport</h3>
+      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <Field label="IATA" value={details.iataCode} placeholder="MEL" narrow
+          onChange={(v) => setDetails({ ...details, iataCode: v.toUpperCase().slice(0, 3) })} />
+        <Field label="Airport name" value={details.airportName} placeholder="Melbourne Airport"
+          onChange={(v) => setDetails({ ...details, airportName: v })} />
+        <Field label="City" value={details.city} placeholder="Melbourne"
+          onChange={(v) => setDetails({ ...details, city: v })} />
+        <Field label="Country" value={details.country} placeholder="Australia"
+          onChange={(v) => setDetails({ ...details, country: v })}
+          onBlur={() => setDetails(d => ({ ...d, country: normalizeCountry(d.country) }))} />
+        <button type="submit" disabled={!complete || busy} style={{
+          ...buttonStyle, background: '#1a1a2e', color: '#fff', border: 'none', padding: '9px 18px',
+          opacity: !complete || busy ? 0.4 : 1, cursor: !complete || busy ? 'default' : 'pointer',
+        }}>
+          {busy ? 'Adding...' : 'Add'}
+        </button>
+      </div>
+      {message && (
+        <p style={{ fontSize: '13px', color: message.ok ? '#2e7d32' : '#cc3333', margin: '10px 0 0' }}>{message.text}</p>
+      )}
+    </form>
+  );
+}
+
+function Field({ label, value, onChange, onBlur, placeholder, narrow }) {
+  return (
+    <label style={narrow ? { flex: '0 0 90px' } : { flex: 1, minWidth: '150px' }}>
       <span style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#888', marginBottom: '4px' }}>
         {label}
       </span>
-      <input value={value} onChange={(e) => onChange(e.target.value)} style={{
+      <input value={value} onChange={(e) => onChange(e.target.value)} onBlur={onBlur} placeholder={placeholder} style={{
         width: '100%', padding: '8px 10px', border: '1px solid #ddd', borderRadius: '6px',
         fontSize: '14px', boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit',
       }} />

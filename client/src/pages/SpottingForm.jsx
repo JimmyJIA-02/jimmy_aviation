@@ -5,30 +5,7 @@ import api from '../api/axios';
 import { SPOTTING_TAGS } from '../utils/spottingTags';
 import { COUNTRY_OPTIONS } from '../utils/geo';
 
-const COUNTRY_ALIASES = {
-  'usa': 'United States', 'us': 'United States',
-  'uk': 'United Kingdom', 'uae': 'United Arab Emirates',
-  'nz': 'New Zealand', 'au': 'Australia',
-  'sg': 'Singapore', 'jp': 'Japan',
-  'cn': 'China', 'kr': 'South Korea',
-  'hk': 'Hong Kong SAR, China', 'tw': 'Taiwan, China',
-  'mo': 'Macau SAR, China',
-  'america': 'United States', 'united states of america': 'United States',
-  'britain': 'United Kingdom', 'great britain': 'United Kingdom',
-  'england': 'United Kingdom',
-  'hong kong': 'Hong Kong SAR, China', 'hongkong': 'Hong Kong SAR, China',
-  'taiwan': 'Taiwan, China',
-  'macau': 'Macau SAR, China', 'macao': 'Macau SAR, China',
-  'korea': 'South Korea', 'south korea': 'South Korea',
-  'emirates': 'United Arab Emirates',
-};
-
 const tagList = (csv) => (csv || '').split(',').filter(Boolean);
-
-function normalizeCountry(value) {
-  const lookup = value.trim().toLowerCase();
-  return COUNTRY_ALIASES[lookup] || value;
-}
 
 export default function SpottingForm() {
   const [dragOver, setDragOver] = useState(false);
@@ -49,9 +26,6 @@ export default function SpottingForm() {
     departureAirport: '',
     arrivalAirport: '',
     spotLocationIata: '',
-    spotLocationName: '',
-    spotLocationCity: '',
-    spotLocationCountry: '',
     tags: '', // comma-separated keys, as the server takes them
   });
 
@@ -78,9 +52,6 @@ export default function SpottingForm() {
           departureAirport: s.flight?.departureAirport || '',
           arrivalAirport: s.flight?.arrivalAirport || '',
           spotLocationIata: s.spotLocation?.iataCode || '',
-          spotLocationName: s.spotLocation?.airportName || '',
-          spotLocationCity: s.spotLocation?.city || '',
-          spotLocationCountry: s.spotLocation?.country || '',
           tags: (s.tags || []).join(','),
         });
         if (s.photoUrl) {
@@ -148,16 +119,6 @@ export default function SpottingForm() {
   // the server looks the airport up by code, so keep it uppercase
   const handleAirportCodeChange = (e) => {
     handleChange({ target: { name: e.target.name, value: e.target.value.toUpperCase() } });
-  };
-
-  const handleCountryBlur = (e) => {
-    const { name, value } = e.target;
-    const normalized = normalizeCountry(value);
-    if (normalized !== value) {
-      const updated = { ...form, [name]: normalized };
-      setForm(updated);
-      sessionStorage.setItem('spottingDraft', JSON.stringify(updated));
-    }
   };
 
   const handleFileSelect = async (file) => {
@@ -362,14 +323,10 @@ export default function SpottingForm() {
           </FieldRow>
         </FieldSection>
 
+        {/* airports are added in Airport Management; here one is picked by its code */}
         <FieldSection title="Spot Location">
           <FieldRow>
-            <Field label="Airport IATA" name="spotLocationIata" value={form.spotLocationIata} onChange={handleChange} placeholder="Spot Location Airport IATA" />
-            <Field label="Airport Name" name="spotLocationName" value={form.spotLocationName} onChange={handleChange} placeholder="Spot Location Airport Name" />
-          </FieldRow>
-          <FieldRow>
-            <Field label="City" name="spotLocationCity" value={form.spotLocationCity} onChange={handleChange} placeholder="Spot Location City" />
-            <Field label="Country" name="spotLocationCountry" value={form.spotLocationCountry} onChange={handleChange} onBlur={handleCountryBlur} placeholder="Spot Location Country" />
+            <Field label="Airport IATA" name="spotLocationIata" value={form.spotLocationIata} onChange={handleAirportCodeChange} placeholder="MEL" />
           </FieldRow>
         </FieldSection>
 

@@ -39,15 +39,11 @@ public class AdminSpottingService {
             String departureAirport,
             String arrivalAirport,
             String spotLocationIata,
-            String spotLocationName,
-            String spotLocationCity,
-            String spotLocationCountry,
             String tags) {
         Set<String> tagSet = SpottingTags.parse(tags);
+        Airport spotLocation = findAirport(spotLocationIata);
         Aircraft aircraft = findOrCreateAircraft(aircraftIcao, aircraftTypeName);
         Airline airline = findOrCreateAirline(airlineIcao, airlineName, airlineCountry);
-        Airport spotLocation = findOrCreateAirport(spotLocationIata, spotLocationName, spotLocationCity,
-                spotLocationCountry);
         Flight flight = findOrCreateFlight(
                 flightNumber,
                 checkAirportCode(departureAirport, null),
@@ -117,16 +113,15 @@ public class AdminSpottingService {
         return airlineRepository.save(airline);
     }
 
-    private Airport findOrCreateAirport(String iataCode, String airportName, String city, String country) {
-        return airportRepository.findByIataCode(iataCode)
-                .orElseGet(() -> {
-                    Airport a = new Airport();
-                    a.setIataCode(iataCode);
-                    a.setAirportName(airportName);
-                    a.setCity(city);
-                    a.setCountry(country);
-                    return airportRepository.save(a);
-                });
+    // airports are created in Airport Management; here they're only picked by code
+    private Airport findAirport(String iataCode) {
+        String code = iataCode == null ? "" : iataCode.trim().toUpperCase();
+        if (code.isEmpty()) {
+            throw new IllegalArgumentException("Enter the spot location's IATA code, e.g. MEL");
+        }
+        return airportRepository.findFirstByIataCodeIgnoreCase(code)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Airport " + code + " isn't set up yet. Add it in Airport Management first."));
     }
 
     // flights are shared by flight number, so the latest saved route wins
@@ -183,11 +178,7 @@ public class AdminSpottingService {
                     updates.get("aircraftTypeName")));
         }
         if (updates.containsKey("spotLocationIata")) {
-            spotting.setSpotLocation(findOrCreateAirport(
-                    updates.get("spotLocationIata"),
-                    updates.get("spotLocationName"),
-                    updates.get("spotLocationCity"),
-                    updates.get("spotLocationCountry")));
+            spotting.setSpotLocation(findAirport(updates.get("spotLocationIata")));
         }
         if (updates.containsKey("flightNumber")) {
             Flight current = spotting.getFlight();

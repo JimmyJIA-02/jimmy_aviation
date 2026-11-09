@@ -10,15 +10,12 @@ import java.util.stream.Collectors;
  */
 public final class SpottingTags {
 
-    public static final Set<String> ALLOWED = Set.of(
-            "special-livery", "retro-livery", "alliance-livery",
-            "cargo", "rare-visitor", "delivery", "diversion", "government",
-            "night");
+    public static final Set<String> ALLOWED = Set.of("special-scheme", "cargo", "helicopter", "business-jet");
 
     private SpottingTags() {}
 
     /**
-     * @param csv tags as the form sends them, e.g. "cargo,special-livery"; null or blank for none
+     * @param csv tags as the form sends them, e.g. "cargo,special-scheme"; null or blank for none
      * @throws IllegalArgumentException for a tag that isn't in {@link #ALLOWED}
      */
     public static Set<String> parse(String csv) {

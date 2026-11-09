@@ -25,6 +25,12 @@ public class AdminAirportController {
         return ResponseEntity.ok(airportService.listAirports());
     }
 
+    // IATA code, name, city and country
+    @PostMapping
+    public ResponseEntity<AirportView> createAirport(@RequestBody Map<String, String> details) {
+        return ResponseEntity.status(201).body(airportService.createAirport(details));
+    }
+
     // name, city and country; the IATA code stays as it is
     @PatchMapping("/{id}")
     public ResponseEntity<AirportView> updateAirport(@PathVariable UUID id, @RequestBody Map<String, String> updates) {

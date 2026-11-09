@@ -53,7 +53,7 @@ public class Spotting {
     @JoinColumn(name = "spot_location", nullable = false)
     private Airport spotLocation;
 
-    // categories ticked on the form, e.g. "cargo", "special-livery" (see SpottingTags);
+    // categories ticked on the form, e.g. "cargo", "special-scheme" (see SpottingTags);
     // loaded for all spottings in one extra query rather than one per spotting
     @ElementCollection(fetch = FetchType.EAGER)
     @Fetch(FetchMode.SUBSELECT)
