@@ -7,6 +7,7 @@ import aboutContent from '../assets/about.md?raw';
 
 import api from '../api/axios';
 import RouteMap from '../components/RouteMap';
+import SkyBackground from '../components/SkyBackground';
 import SpottingLocations from '../components/SpottingLocations';
 import { FilterSheet, ActiveFilters } from '../components/GalleryFilters';
 import { EMPTY_FILTERS, facetRows, passes } from '../utils/galleryFilters';
@@ -90,11 +91,14 @@ export default function Gallery() {
 
     const closeFilter = useCallback(() => setShowFilter(false), []);
 
+    // every tab sits on the same sky, so it keeps flying when switching tabs
+    const page = (content) => <><SkyBackground spottings={spottings} />{content}</>;
+
     const pickCount = Object.values(filters).reduce((n, picked) => n + picked.length, 0);
     const hasActiveFilters = pickCount > 0;
 
     if (activeTab === 'about') {
-        return (
+        return page(
             <div style={{ minHeight: '100vh', fontFamily: "'DM Sans', sans-serif" }}>
                 <NavBar activeTab={activeTab} setActiveTab={setActiveTab} />
                 <div style={{
@@ -183,8 +187,8 @@ export default function Gallery() {
     }
 
     if (activeTab === 'logbook') {
-        return (
-            <div style={{ minHeight: '100vh', fontFamily: "'DM Sans', sans-serif", background: '#fff' }}>
+        return page(
+            <div style={{ minHeight: '100vh', fontFamily: "'DM Sans', sans-serif" }}>
                 <NavBar activeTab={activeTab} setActiveTab={setActiveTab} />
 
                 <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '40px 24px' }}>
@@ -223,8 +227,8 @@ export default function Gallery() {
         );
     }
 
-    return (
-        <div style={{ minHeight: '100vh', fontFamily: "'DM Sans', sans-serif", background: '#fff' }}>
+    return page(
+        <div style={{ minHeight: '100vh', fontFamily: "'DM Sans', sans-serif" }}>
             <NavBar activeTab={activeTab} setActiveTab={setActiveTab} />
 
             {/* Controls row */}
