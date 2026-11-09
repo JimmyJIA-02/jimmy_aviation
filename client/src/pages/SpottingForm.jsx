@@ -29,8 +29,10 @@ export default function SpottingForm() {
     tags: '', // comma-separated keys, as the server takes them
   });
 
-  const [photo, setPhoto] = useState(null);
-  const [photoPreview, setPhotoPreview] = useState(null);
+  // new photos, each { file, preview }; a new upload can take several, an edit replaces with one
+  const [photos, setPhotos] = useState([]);
+  const [existingPhoto, setExistingPhoto] = useState(null);
+  const [progress, setProgress] = useState(null); // { done, total } while saving several
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [lookingUp, setLookingUp] = useState(false);
@@ -55,7 +57,7 @@ export default function SpottingForm() {
           tags: (s.tags || []).join(','),
         });
         if (s.photoUrl) {
-          setPhotoPreview(s.photoUrl.startsWith('/api') ? s.photoUrl : `/api/photo/${s.photoUrl}`);
+          setExistingPhoto(s.photoUrl.startsWith('/api') ? s.photoUrl : `/api/photo/${s.photoUrl}`);
         }
       }).catch(() => setError('Failed to load spotting'));
     } else {
@@ -121,10 +123,28 @@ export default function SpottingForm() {
     handleChange({ target: { name: e.target.name, value: e.target.value.toUpperCase() } });
   };
 
-  const handleFileSelect = async (file) => {
-    setPhoto(file);
-    setPhotoPreview(URL.createObjectURL(file));
+  // dropped or picked files; the same file twice is ignored. Date and notes come from the first photo
+  const addFiles = (fileList) => {
+    const images = [...fileList].filter(f => f.type.startsWith('image/'));
+    const fileKey = (f) => `${f.name}|${f.size}|${f.lastModified}`;
+    const seen = new Set(isEditing ? [] : photos.map(p => fileKey(p.file)));
+    const added = (isEditing ? images.slice(0, 1) : images)
+      .filter(f => !seen.has(fileKey(f)))
+      .map(file => ({ file, preview: URL.createObjectURL(file) }));
+    if (!added.length) return;
 
+    const first = isEditing || photos.length === 0;
+    if (isEditing) photos.forEach(p => URL.revokeObjectURL(p.preview));
+    setPhotos(isEditing ? added : [...photos, ...added]);
+    if (first) readExif(added[0].file);
+  };
+
+  const removePhoto = (index) => {
+    URL.revokeObjectURL(photos[index].preview);
+    setPhotos(photos.filter((_, i) => i !== index));
+  };
+
+  const readExif = async (file) => {
     try {
       const tags = await ExifReader.load(file);
       const updates = {};
@@ -165,36 +185,54 @@ export default function SpottingForm() {
     setSaving(true);
     setError('');
 
-    try {
-      let photoUrl = null;
+    const uploadPhoto = async (file) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      return (await api.post('/admin/photo/upload', formData)).data.url;
+    };
 
-      if (photo) {
-        const formData = new FormData();
-        formData.append('file', photo);
-        const uploadRes = await api.post('/admin/photo/upload', formData);
-        photoUrl = uploadRes.data.url;
-      }
-
-      const body = { ...form };
-      if (photoUrl) body.photoUrl = photoUrl;
-
-      if (isEditing) {
+    if (isEditing) {
+      try {
+        const body = { ...form };
+        if (photos[0]) body.photoUrl = await uploadPhoto(photos[0].file);
         await api.patch(`/admin/spotting/${id}`, body);
-      } else {
-        if (!photoUrl) {
-          setError('Please upload a photo');
-          setSaving(false);
-          return;
-        }
-        await api.post('/admin/spotting', body);
+        navigate('/admin');
+      } catch (err) {
+        setError(err.response?.data?.message || 'Failed to save');
+      } finally {
+        setSaving(false);
       }
+      return;
+    }
 
-      navigate('/admin');
+    if (!photos.length) {
+      setError('Please upload a photo');
+      setSaving(false);
+      return;
+    }
+
+    // one spotting per photo, all with the details above, one after another
+    let saved = 0;
+    try {
+      for (const p of photos) {
+        setProgress({ done: saved, total: photos.length });
+        const photoUrl = await uploadPhoto(p.file);
+        await api.post('/admin/spotting', { ...form, photoUrl });
+        saved++;
+      }
       sessionStorage.removeItem('spottingDraft');
+      navigate('/admin');
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to save');
+      // keep only the photos not yet saved, so pressing Create again doesn't make duplicates
+      photos.slice(0, saved).forEach(p => URL.revokeObjectURL(p.preview));
+      const message = err.response?.data?.message || 'Failed to save';
+      setPhotos(photos.slice(saved));
+      setError(saved
+        ? `${saved} of ${photos.length} saved, then: ${message}. Press Create to retry the remaining ${photos.length - saved}.`
+        : message);
     } finally {
       setSaving(false);
+      setProgress(null);
     }
   };
 
@@ -216,7 +254,12 @@ export default function SpottingForm() {
 
         {/* Photo upload */}
         <div style={{ marginBottom: '24px' }}>
-          <label style={labelStyle}>Photo</label>
+          <label style={labelStyle}>
+            {isEditing ? 'Photo' : 'Photos'}
+            {photos.length > 1 && (
+              <span style={{ color: '#888', fontWeight: 400 }}> · {photos.length} photos, one spotting each</span>
+            )}
+          </label>
           <div
             style={{
               border: dragOver ? '2px dashed #1a1a2e' : '2px dashed #ddd',
@@ -227,7 +270,7 @@ export default function SpottingForm() {
               background: dragOver ? 'rgba(26,26,46,0.05)' : 'transparent',
               transition: 'all 0.2s',
             }}
-            onClick={() => document.getElementById('photo-input').click()}
+            onClick={() => !saving && document.getElementById('photo-input').click()}
             onDragOver={(e) => {
               e.preventDefault();
               setDragOver(true);
@@ -236,30 +279,45 @@ export default function SpottingForm() {
             onDrop={(e) => {
               e.preventDefault();
               setDragOver(false);
-              const file = e.dataTransfer.files[0];
-              if (file) handleFileSelect(file);
+              if (!saving) addFiles(e.dataTransfer.files);
             }}
           >
-            {photoPreview ? (
-              <img src={photoPreview} alt="Preview" style={{
-                maxWidth: '100%', maxHeight: '200px', objectFit: 'contain', borderRadius: '4px',
-              }} />
-            ) : (
-              <div>
-                <p style={{ color: '#888', fontSize: '14px', margin: '0 0 4px' }}>
-                  Drag & drop a photo here
-                </p>
-                <p style={{ color: '#bbb', fontSize: '12px', margin: 0 }}>
-                  or click to browse
-                </p>
+            {isEditing ? (
+              (photos[0]?.preview || existingPhoto) ? (
+                <img src={photos[0]?.preview || existingPhoto} alt="Preview" style={{
+                  maxWidth: '100%', maxHeight: '200px', objectFit: 'contain', borderRadius: '4px',
+                }} />
+              ) : <DropHint text="Drag & drop a photo here" />
+            ) : photos.length ? (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center' }}>
+                {photos.map((p, i) => (
+                  <div key={p.preview} style={{ position: 'relative', height: '120px' }}>
+                    <img src={p.preview} alt={`Photo ${i + 1}`} style={{
+                      height: '100%', maxWidth: '200px', objectFit: 'cover', borderRadius: '4px', display: 'block',
+                    }} />
+                    {!saving && (
+                      <button type="button" aria-label={`Remove photo ${i + 1}`}
+                        onClick={(e) => { e.stopPropagation(); removePhoto(i); }}
+                        style={{
+                          position: 'absolute', top: '4px', right: '4px', width: '22px', height: '22px',
+                          borderRadius: '50%', border: 'none', background: 'rgba(0,0,0,0.6)', color: '#fff',
+                          fontSize: '14px', lineHeight: '22px', padding: 0, cursor: 'pointer',
+                        }}>×</button>
+                    )}
+                  </div>
+                ))}
+                <div style={{
+                  height: '120px', width: '120px', borderRadius: '4px', border: '1px dashed #ccc',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#888', fontSize: '13px',
+                }}>+ Add more</div>
               </div>
+            ) : (
+              <DropHint text="Drag & drop photos here" sub="or click to browse · several photos make one spotting each" />
             )}
             <input
-              id="photo-input" type="file" accept="image/*"
-              onChange={(e) => {
-                const file = e.target.files[0];
-                if (file) handleFileSelect(file);
-              }}
+              id="photo-input" type="file" accept="image/*" multiple={!isEditing}
+              onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }}
               style={{ display: 'none' }}
             />
           </div>
@@ -352,7 +410,9 @@ export default function SpottingForm() {
             fontWeight: 600, cursor: saving ? 'wait' : 'pointer',
             opacity: saving ? 0.7 : 1,
           }}>
-            {saving ? 'Saving...' : isEditing ? 'Update' : 'Create'}
+            {saving
+              ? (progress && progress.total > 1 ? `Saving ${progress.done + 1} of ${progress.total}...` : 'Saving...')
+              : isEditing ? 'Update' : photos.length > 1 ? `Create ${photos.length} spottings` : 'Create'}
           </button>
           <button
             type="button"
@@ -383,6 +443,15 @@ export default function SpottingForm() {
           }}>Cancel</button>
         </div>
       </form>
+    </div>
+  );
+}
+
+function DropHint({ text, sub = 'or click to browse' }) {
+  return (
+    <div>
+      <p style={{ color: '#888', fontSize: '14px', margin: '0 0 4px' }}>{text}</p>
+      <p style={{ color: '#bbb', fontSize: '12px', margin: 0 }}>{sub}</p>
     </div>
   );
 }
