@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import ExifReader from 'exifreader';
 import api from '../api/axios';
 import { SPOTTING_TAGS } from '../utils/spottingTags';
-import { COUNTRY_OPTIONS } from '../utils/geo';
+import CountryInput from '../components/CountryInput';
 
 const tagList = (csv) => (csv || '').split(',').filter(Boolean);
 
@@ -286,13 +286,15 @@ export default function SpottingForm() {
             {/* saved on the airline, so it applies to all of its spottings */}
             <div style={{ flex: 1 }}>
               <label style={labelStyle}>Country</label>
-              <select name="airlineCountry" value={form.airlineCountry} onChange={handleChange} style={{
-                width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: '6px',
-                fontSize: '14px', boxSizing: 'border-box', outline: 'none', background: '#fff', fontFamily: 'inherit',
-              }}>
-                <option value="">{isEditing ? 'Not set' : 'Keep / not set'}</option>
-                {COUNTRY_OPTIONS.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
-              </select>
+              <CountryInput
+                value={form.airlineCountry}
+                onChange={(code) => handleChange({ target: { name: 'airlineCountry', value: code } })}
+                placeholder="Type a country"
+                style={{
+                  width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: '6px',
+                  fontSize: '14px', boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit',
+                }}
+              />
             </div>
           </FieldRow>
         </FieldSection>
