@@ -11,6 +11,7 @@ import SpottingLocations from '../components/SpottingLocations';
 import { FilterSheet, ActiveFilters } from '../components/GalleryFilters';
 import { EMPTY_FILTERS, facetRows, passes } from '../utils/galleryFilters';
 import { tagInfo } from '../utils/spottingTags';
+import { searchFields, queryWords, matchesQuery } from '../utils/search';
 
 const TABS = [
     { key: 'gallery', label: 'GALLERY' },
@@ -22,7 +23,8 @@ export default function Gallery() {
     const [spottings, setSpottings] = useState([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('gallery');
-    const [search, setSearch] = useState('');
+    // kept in the address (?q=qantas), so it survives going back from a spotting and can be shared
+    const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get('q') || '');
     const [showFilter, setShowFilter] = useState(false);
     const [filters, setFilters] = useState(EMPTY_FILTERS);
     const [showBackToTop, setShowBackToTop] = useState(false);
@@ -34,6 +36,13 @@ export default function Gallery() {
         window.addEventListener('scroll', handleScroll);
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
+
+    useEffect(() => {
+        const url = new URL(window.location.href);
+        if (search.trim()) url.searchParams.set('q', search.trim());
+        else url.searchParams.delete('q');
+        window.history.replaceState(window.history.state, '', url);
+    }, [search]);
 
     useEffect(() => {
         api.get('/spotting/all')
@@ -58,15 +67,15 @@ export default function Gallery() {
         return url.startsWith('/api') ? url : `/api/photo/${url}`;
     };
 
+    const searchable = useMemo(() => spottings.map(s => ({ spotting: s, fields: searchFields(s) })), [spottings]);
+
     // the filter counts follow the search, so they always match what the grid can show
     const rows = useMemo(() => {
-        const q = search.trim().toLowerCase();
-        return facetRows(spottings.filter(s => !q
-            || (s.registration || '').toLowerCase().includes(q)
-            || (s.airline?.airlineName || '').toLowerCase().includes(q)
-            || (s.aircraft?.typeName || '').toLowerCase().includes(q)
-            || (s.notes || '').toLowerCase().includes(q)));
-    }, [spottings, search]);
+        const words = queryWords(search);
+        return facetRows(searchable
+            .filter(({ fields }) => matchesQuery(fields, words))
+            .map(({ spotting }) => spotting));
+    }, [searchable, search]);
 
     const filtered = rows
         .filter(row => passes(row, filters))
@@ -258,7 +267,7 @@ export default function Gallery() {
                     <input
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search with keywords..."
+                        placeholder="Search for airline, registration, flight, airport..."
                         style={{
                             border: 'none', outline: 'none', fontSize: '14px',
                             width: '100%', background: 'transparent',
