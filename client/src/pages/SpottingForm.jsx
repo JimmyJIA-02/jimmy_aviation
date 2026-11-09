@@ -7,27 +7,40 @@ import CountryInput from '../components/CountryInput';
 
 const tagList = (csv) => (csv || '').split(',').filter(Boolean);
 
+const EMPTY_FORM = {
+  registration: '',
+  spotDate: '',
+  notes: '',
+  aircraftIcao: '',
+  aircraftTypeName: '',
+  airlineIcao: '',
+  airlineName: '',
+  airlineCountry: '',
+  flightNumber: '',
+  departureAirport: '',
+  arrivalAirport: '',
+  spotLocationIata: '',
+  tags: '', // comma-separated keys, as the server takes them
+};
+
+// merged over EMPTY_FORM, so a draft saved before a field existed still fills every field
+function readDraft() {
+  try {
+    return JSON.parse(sessionStorage.getItem('spottingDraft')) || {};
+  } catch {
+    sessionStorage.removeItem('spottingDraft'); // unreadable, so start fresh
+    return {};
+  }
+}
+
 export default function SpottingForm() {
   const [dragOver, setDragOver] = useState(false);
   const { id } = useParams();
   const isEditing = !!id;
   const navigate = useNavigate();
 
-  const [form, setForm] = useState({
-    registration: '',
-    spotDate: '',
-    notes: '',
-    aircraftIcao: '',
-    aircraftTypeName: '',
-    airlineIcao: '',
-    airlineName: '',
-    airlineCountry: '',
-    flightNumber: '',
-    departureAirport: '',
-    arrivalAirport: '',
-    spotLocationIata: '',
-    tags: '', // comma-separated keys, as the server takes them
-  });
+  // a new upload starts from the saved draft, if there is one; an edit is filled in once it loads
+  const [form, setForm] = useState(() => isEditing ? EMPTY_FORM : { ...EMPTY_FORM, ...readDraft() });
 
   // new photos, each { file, preview }; a new upload can take several, an edit replaces with one
   const [photos, setPhotos] = useState([]);
@@ -38,38 +51,28 @@ export default function SpottingForm() {
   const [lookingUp, setLookingUp] = useState(false);
 
   useEffect(() => {
-    if (isEditing) {
-      api.get(`/admin/spotting/${id}`).then(res => {
-        const s = res.data;
-        setForm({
-          registration: s.registration || '',
-          spotDate: s.spotDate || '',
-          notes: s.notes || '',
-          aircraftIcao: s.aircraft?.icaoCode || '',
-          aircraftTypeName: s.aircraft?.typeName || '',
-          airlineIcao: s.airline?.icaoCode || '',
-          airlineName: s.airline?.airlineName || '',
-          airlineCountry: s.airline?.countryCode || '',
-          flightNumber: s.flight?.flightNumber || '',
-          departureAirport: s.flight?.departureAirport || '',
-          arrivalAirport: s.flight?.arrivalAirport || '',
-          spotLocationIata: s.spotLocation?.iataCode || '',
-          tags: (s.tags || []).join(','),
-        });
-        if (s.photoUrl) {
-          setExistingPhoto(s.photoUrl.startsWith('/api') ? s.photoUrl : `/api/photo/${s.photoUrl}`);
-        }
-      }).catch(() => setError('Failed to load spotting'));
-    } else {
-      // Restore draft
-      const draft = sessionStorage.getItem('spottingDraft');
-      if (draft) {
-        try {
-          // over the defaults, so a draft saved before a field existed still fills every field
-          setForm(prev => ({ ...prev, ...JSON.parse(draft) }));
-        } catch (e) { }
+    if (!isEditing) return;
+    api.get(`/admin/spotting/${id}`).then(res => {
+      const s = res.data;
+      setForm({
+        registration: s.registration || '',
+        spotDate: s.spotDate || '',
+        notes: s.notes || '',
+        aircraftIcao: s.aircraft?.icaoCode || '',
+        aircraftTypeName: s.aircraft?.typeName || '',
+        airlineIcao: s.airline?.icaoCode || '',
+        airlineName: s.airline?.airlineName || '',
+        airlineCountry: s.airline?.countryCode || '',
+        flightNumber: s.flight?.flightNumber || '',
+        departureAirport: s.flight?.departureAirport || '',
+        arrivalAirport: s.flight?.arrivalAirport || '',
+        spotLocationIata: s.spotLocation?.iataCode || '',
+        tags: (s.tags || []).join(','),
+      });
+      if (s.photoUrl) {
+        setExistingPhoto(s.photoUrl.startsWith('/api') ? s.photoUrl : `/api/photo/${s.photoUrl}`);
       }
-    }
+    }).catch(() => setError('Failed to load spotting'));
   }, [id, isEditing]);
 
   const handleRegistrationLookup = async () => {
@@ -99,7 +102,7 @@ export default function SpottingForm() {
         sessionStorage.setItem('spottingDraft', JSON.stringify(updated));
         return updated;
       });
-    } catch (err) {
+    } catch {
       setError('Failed to lookup registration');
     } finally {
       setLookingUp(false);
