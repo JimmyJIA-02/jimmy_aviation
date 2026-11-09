@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 // Small aircraft drifting behind the guest pages, each with an ATC-style data box. Callsign, type and
 // route come from the logbook's spottings; level, speed and climb rate are made up, as they aren't logged.
@@ -24,10 +24,38 @@ function flightsFrom(spottings) {
     return [...seen.values()];
 }
 
+const MODES = [
+    { key: 'moving', label: 'Moving' },
+    { key: 'still', label: 'Still' },
+    { key: 'off', label: 'Off' },
+];
+
+// the visitor's last pick; otherwise still if their device asks for reduced motion
+function initialMode() {
+    try {
+        const saved = localStorage.getItem('skyMode');
+        if (MODES.some(m => m.key === saved)) return saved;
+    } catch { /* storage blocked: fall through */ }
+    return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'still' : 'moving';
+}
+
 export default function SkyBackground({ spottings }) {
     const canvasRef = useRef(null);
     const flightsRef = useRef([]);
-    useEffect(() => { flightsRef.current = flightsFrom(spottings); }, [spottings]);
+    const [mode, setMode] = useState(initialMode);
+    const modeRef = useRef(mode);
+    const renderRef = useRef(() => {}); // set by the effect below: redraws for the current mode
+
+    useEffect(() => {
+        flightsRef.current = flightsFrom(spottings);
+        renderRef.current();
+    }, [spottings]);
+
+    useEffect(() => {
+        modeRef.current = mode;
+        try { localStorage.setItem('skyMode', mode); } catch { /* not remembered, that's fine */ }
+        renderRef.current();
+    }, [mode]);
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -152,24 +180,53 @@ export default function SkyBackground({ spottings }) {
             draw();
         };
 
-        resize();
-        frame = requestAnimationFrame(tick);
-        const onVisibility = () => {
+        // moving: animate; still: one frame, with the planes already part-way across; off: blank
+        const render = () => {
             cancelAnimationFrame(frame);
+            const current = modeRef.current;
+            if (current === 'off' || !flightsRef.current.length) { ctx.clearRect(0, 0, W, H); return; }
+            if (current === 'still') {
+                if (!planes.length) for (let t = 0; t < 45; t += 0.1) step(0.1);
+                draw();
+                return;
+            }
             if (!document.hidden) { last = performance.now(); frame = requestAnimationFrame(tick); }
         };
-        window.addEventListener('resize', resize);
-        document.addEventListener('visibilitychange', onVisibility);
+        renderRef.current = render;
+
+        resize();
+        render();
+        const onResize = () => { resize(); render(); };
+        window.addEventListener('resize', onResize);
+        document.addEventListener('visibilitychange', render);
         return () => {
             cancelAnimationFrame(frame);
-            window.removeEventListener('resize', resize);
-            document.removeEventListener('visibilitychange', onVisibility);
+            renderRef.current = () => {};
+            window.removeEventListener('resize', onResize);
+            document.removeEventListener('visibilitychange', render);
         };
     }, []);
 
     return (
-        <canvas ref={canvasRef} aria-hidden="true" style={{
-            position: 'fixed', inset: 0, zIndex: -1, pointerEvents: 'none', display: 'block',
-        }} />
+        <>
+            <canvas ref={canvasRef} aria-hidden="true" style={{
+                position: 'fixed', inset: 0, zIndex: -1, pointerEvents: 'none', display: 'block',
+            }} />
+            <div role="radiogroup" aria-label="Background planes" style={{
+                // bottom-right corner; the gallery's back-to-top button sits just above it
+                position: 'fixed', right: '32px', bottom: '32px', zIndex: 10, display: 'flex', alignItems: 'center',
+                gap: '2px', padding: '3px', borderRadius: '999px', border: '1px solid #eee',
+                background: 'rgba(255,255,255,0.9)', fontFamily: "'DM Sans', sans-serif",
+            }}>
+                <span aria-hidden="true" style={{ fontSize: '12px', padding: '0 4px 0 6px', color: '#888' }}>✈</span>
+                {MODES.map(m => (
+                    <button key={m.key} role="radio" aria-checked={mode === m.key} onClick={() => setMode(m.key)} style={{
+                        border: 'none', borderRadius: '999px', padding: '4px 10px', cursor: 'pointer',
+                        fontSize: '11px', fontWeight: 600, fontFamily: 'inherit',
+                        background: mode === m.key ? '#1a1a2e' : 'transparent', color: mode === m.key ? '#fff' : '#888',
+                    }}>{m.label}</button>
+                ))}
+            </div>
+        </>
     );
 }

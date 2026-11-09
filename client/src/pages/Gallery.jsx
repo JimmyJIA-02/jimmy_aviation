@@ -313,7 +313,7 @@ export default function Gallery() {
                     onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
                     style={{
                         position: 'fixed',
-                        bottom: '32px',
+                        bottom: '76px', // just above the planes switch in the corner
                         right: '32px',
                         width: '44px',
                         height: '44px',
