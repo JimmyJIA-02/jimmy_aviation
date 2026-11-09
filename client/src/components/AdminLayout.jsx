@@ -1,9 +1,17 @@
+import { useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function AdminLayout() {
   const { logout } = useAuth();
   const navigate = useNavigate();
+
+  // the browser tab says Admin on every /admin page, and goes back to the site's title on leaving
+  useEffect(() => {
+    const previous = document.title;
+    document.title = "Jimmy's Aviation Admin";
+    return () => { document.title = previous; };
+  }, []);
 
   const handleLogout = () => {
     logout();
