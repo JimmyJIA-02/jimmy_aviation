@@ -42,29 +42,41 @@ export default function SkyBackground({ spottings }) {
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         };
 
-        // enters from an edge and heads roughly across (or, at the start, anywhere on screen)
-        const spawn = (anywhere = false) => {
+        // How far a point can go along (dx, dy) before it's out of sight, box included. The box sits
+        // up-right of the plane, so the plane must be further out on the left and bottom to hide it
+        const MARGIN = { left: 170, right: 20, top: 20, bottom: 70 };
+        const distanceOut = (x, y, dx, dy) => Math.min(
+            dx > 0 ? (W + MARGIN.right - x) / dx : dx < 0 ? (x + MARGIN.left) / -dx : Infinity,
+            dy > 0 ? (H + MARGIN.bottom - y) / dy : dy < 0 ? (y + MARGIN.top) / -dy : Infinity,
+        );
+
+        // starts just out of sight (plus `lead` px further back) on a line that crosses the screen,
+        // and is replaced once it has gone out of sight on the far side
+        const spawn = (lead = 0) => {
             const pool = flightsRef.current;
-            if (!pool.length) return null;
             const f = pool[next++ % pool.length];
             const heading = Math.random() * Math.PI * 2;
-            const r = Math.hypot(W, H) / 2 + 60;
-            const x = anywhere ? Math.random() * W : W / 2 - Math.cos(heading) * r + (Math.random() - 0.5) * W * 0.6;
-            const y = anywhere ? Math.random() * H : H / 2 - Math.sin(heading) * r + (Math.random() - 0.5) * H * 0.6;
+            const dx = Math.cos(heading), dy = Math.sin(heading);
+            // a point in the middle 60% of the screen that the route passes through
+            const mx = W * (0.2 + Math.random() * 0.6), my = H * (0.2 + Math.random() * 0.6);
+            const back = distanceOut(mx, my, -dx, -dy) + lead;
             const level = 100 + Math.floor(Math.random() * 30) * 10; // FL100–FL390
             return {
-                ...f, x, y, heading, speed: 14 + Math.random() * 10, level, target: level, vs: 0,
+                ...f, x: mx - dx * back, y: my - dy * back, heading,
+                flown: 0, range: back + distanceOut(mx, my, dx, dy),
+                speed: 14 + Math.random() * 10, level, target: level, vs: 0,
                 gs: 380 + Math.round(Math.random() * 120), changeIn: 5 + Math.random() * 15,
             };
         };
 
         let planes = [];
         const step = (dt) => {
-            // flights arrive after the page loads; fill up once they do
-            while (planes.length < COUNT && flightsRef.current.length) planes.push(spawn(true));
+            // flights arrive after the page loads; the first ones then come in a few seconds apart
+            while (planes.length < COUNT && flightsRef.current.length) planes.push(spawn(planes.length * 90));
             for (const p of planes) {
                 p.x += Math.cos(p.heading) * p.speed * dt;
                 p.y += Math.sin(p.heading) * p.speed * dt;
+                p.flown += p.speed * dt;
                 // now and then a new cleared level, climbed or descended to
                 p.changeIn -= dt;
                 if (p.changeIn <= 0) {
@@ -76,7 +88,7 @@ export default function SkyBackground({ spottings }) {
                 p.vs = Math.abs(diff) < 0.5 ? 0 : Math.sign(diff) * 1500; // ft/min
                 p.level += Math.sign(diff) * Math.min(Math.abs(diff), 3 * dt);
             }
-            planes = planes.map(p => (p.x < -150 || p.y < -150 || p.x > W + 150 || p.y > H + 150) ? spawn() : p);
+            planes = planes.map(p => p.flown >= p.range ? spawn() : p);
         };
 
         const drawPlane = (p) => {
