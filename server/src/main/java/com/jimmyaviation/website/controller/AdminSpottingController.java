@@ -60,13 +60,15 @@ public class AdminSpottingController {
                 request.get("aircraftTypeName"),
                 request.get("airlineIcao"),
                 request.get("airlineName"),
+                request.get("airlineCountry"),
                 request.get("flightNumber"),
                 request.get("departureAirport"),
                 request.get("arrivalAirport"),
                 request.get("spotLocationIata"),
                 request.get("spotLocationName"),
                 request.get("spotLocationCity"),
-                request.get("spotLocationCountry"));
+                request.get("spotLocationCountry"),
+                request.get("tags"));
         return ResponseEntity.status(201).body(spotting);
     }
 

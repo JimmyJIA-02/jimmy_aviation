@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -33,15 +34,18 @@ public class AdminSpottingService {
             String aircraftTypeName,
             String airlineIcao,
             String airlineName,
+            String airlineCountry,
             String flightNumber,
             String departureAirport,
             String arrivalAirport,
             String spotLocationIata,
             String spotLocationName,
             String spotLocationCity,
-            String spotLocationCountry) {
+            String spotLocationCountry,
+            String tags) {
+        Set<String> tagSet = SpottingTags.parse(tags);
         Aircraft aircraft = findOrCreateAircraft(aircraftIcao, aircraftTypeName);
-        Airline airline = findOrCreateAirline(airlineIcao, airlineName);
+        Airline airline = findOrCreateAirline(airlineIcao, airlineName, airlineCountry);
         Airport spotLocation = findOrCreateAirport(spotLocationIata, spotLocationName, spotLocationCity,
                 spotLocationCountry);
         Flight flight = findOrCreateFlight(
@@ -59,6 +63,7 @@ public class AdminSpottingService {
         spotting.setAirline(airline);
         spotting.setFlight(flight);
         spotting.setSpotLocation(spotLocation);
+        spotting.setTags(tagSet);
 
         return spottingRepository.save(spotting);
     }
@@ -92,14 +97,24 @@ public class AdminSpottingService {
                 });
     }
 
-    private Airline findOrCreateAirline(String icaoCode, String airlineName) {
-        return airlineRepository.findByIcaoCode(icaoCode)
+    // the country belongs to the airline, so picking it on one spotting sets it for all of that airline's;
+    // left empty, an airline keeps the country it has
+    private Airline findOrCreateAirline(String icaoCode, String airlineName, String countryCode) {
+        Airline airline = airlineRepository.findByIcaoCode(icaoCode)
                 .orElseGet(() -> {
                     Airline a = new Airline();
                     a.setIcaoCode(icaoCode);
                     a.setAirlineName(airlineName);
-                    return airlineRepository.save(a);
+                    return a;
                 });
+        String country = countryCode == null ? "" : countryCode.trim().toUpperCase();
+        if (!country.isEmpty()) {
+            if (!country.matches("[A-Z]{2}")) {
+                throw new IllegalArgumentException("Unknown airline country \"" + countryCode + "\"");
+            }
+            airline.setCountryCode(country);
+        }
+        return airlineRepository.save(airline);
     }
 
     private Airport findOrCreateAirport(String iataCode, String airportName, String city, String country) {
@@ -156,7 +171,11 @@ public class AdminSpottingService {
         if (updates.containsKey("airlineIcao")) {
             spotting.setAirline(findOrCreateAirline(
                     updates.get("airlineIcao"),
-                    updates.get("airlineName")));
+                    updates.get("airlineName"),
+                    updates.get("airlineCountry")));
+        }
+        if (updates.containsKey("tags")) {
+            spotting.setTags(SpottingTags.parse(updates.get("tags")));
         }
         if (updates.containsKey("aircraftIcao")) {
             spotting.setAircraft(findOrCreateAircraft(

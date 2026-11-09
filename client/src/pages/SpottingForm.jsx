@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import ExifReader from 'exifreader';
 import api from '../api/axios';
+import { SPOTTING_TAGS } from '../utils/spottingTags';
+import { COUNTRY_OPTIONS } from '../utils/geo';
 
 const COUNTRY_ALIASES = {
   'usa': 'United States', 'us': 'United States',
@@ -20,6 +22,8 @@ const COUNTRY_ALIASES = {
   'korea': 'South Korea', 'south korea': 'South Korea',
   'emirates': 'United Arab Emirates',
 };
+
+const tagList = (csv) => (csv || '').split(',').filter(Boolean);
 
 function normalizeCountry(value) {
   const lookup = value.trim().toLowerCase();
@@ -40,6 +44,7 @@ export default function SpottingForm() {
     aircraftTypeName: '',
     airlineIcao: '',
     airlineName: '',
+    airlineCountry: '',
     flightNumber: '',
     departureAirport: '',
     arrivalAirport: '',
@@ -47,6 +52,7 @@ export default function SpottingForm() {
     spotLocationName: '',
     spotLocationCity: '',
     spotLocationCountry: '',
+    tags: '', // comma-separated keys, as the server takes them
   });
 
   const [photo, setPhoto] = useState(null);
@@ -67,6 +73,7 @@ export default function SpottingForm() {
           aircraftTypeName: s.aircraft?.typeName || '',
           airlineIcao: s.airline?.icaoCode || '',
           airlineName: s.airline?.airlineName || '',
+          airlineCountry: s.airline?.countryCode || '',
           flightNumber: s.flight?.flightNumber || '',
           departureAirport: s.flight?.departureAirport || '',
           arrivalAirport: s.flight?.arrivalAirport || '',
@@ -74,6 +81,7 @@ export default function SpottingForm() {
           spotLocationName: s.spotLocation?.airportName || '',
           spotLocationCity: s.spotLocation?.city || '',
           spotLocationCountry: s.spotLocation?.country || '',
+          tags: (s.tags || []).join(','),
         });
         if (s.photoUrl) {
           setPhotoPreview(s.photoUrl.startsWith('/api') ? s.photoUrl : `/api/photo/${s.photoUrl}`);
@@ -84,7 +92,8 @@ export default function SpottingForm() {
       const draft = sessionStorage.getItem('spottingDraft');
       if (draft) {
         try {
-          setForm(JSON.parse(draft));
+          // over the defaults, so a draft saved before a field existed still fills every field
+          setForm(prev => ({ ...prev, ...JSON.parse(draft) }));
         } catch (e) { }
       }
     }
@@ -110,6 +119,10 @@ export default function SpottingForm() {
 
       setForm(prev => {
         const updated = { ...prev, ...updates };
+        // AeroDataBox knows freighters, so Cargo can be ticked for you
+        if (data.isFreighter && !tagList(prev.tags).includes('cargo')) {
+          updated.tags = [...tagList(prev.tags), 'cargo'].join(',');
+        }
         sessionStorage.setItem('spottingDraft', JSON.stringify(updated));
         return updated;
       });
@@ -124,6 +137,12 @@ export default function SpottingForm() {
     const updated = { ...form, [e.target.name]: e.target.value };
     setForm(updated);
     sessionStorage.setItem('spottingDraft', JSON.stringify(updated));
+  };
+
+  const toggleTag = (key) => {
+    const tags = tagList(form.tags);
+    const next = tags.includes(key) ? tags.filter(t => t !== key) : [...tags, key];
+    handleChange({ target: { name: 'tags', value: next.join(',') } });
   };
 
   // the server looks the airport up by code, so keep it uppercase
@@ -303,7 +322,34 @@ export default function SpottingForm() {
           <FieldRow>
             <Field label="ICAO Code" name="airlineIcao" value={form.airlineIcao} onChange={handleChange} placeholder="Aircraft ICAO Code" />
             <Field label="Name" name="airlineName" value={form.airlineName} onChange={handleChange} placeholder="Airline Name" />
+            {/* saved on the airline, so it applies to all of its spottings */}
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>Country</label>
+              <select name="airlineCountry" value={form.airlineCountry} onChange={handleChange} style={{
+                width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: '6px',
+                fontSize: '14px', boxSizing: 'border-box', outline: 'none', background: '#fff', fontFamily: 'inherit',
+              }}>
+                <option value="">{isEditing ? 'Not set' : 'Keep / not set'}</option>
+                {COUNTRY_OPTIONS.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
+              </select>
+            </div>
           </FieldRow>
+        </FieldSection>
+
+        <FieldSection title="Category">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            {SPOTTING_TAGS.map(tag => {
+              const on = tagList(form.tags).includes(tag.key);
+              return (
+                <button key={tag.key} type="button" onClick={() => toggleTag(tag.key)} aria-pressed={on} style={{
+                  padding: '6px 14px', borderRadius: '20px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+                  border: on ? '1px solid #1a1a2e' : '1px solid #ddd',
+                  background: on ? '#1a1a2e' : '#fff', color: on ? '#fff' : '#333',
+                  transition: 'all 0.15s', fontFamily: 'inherit',
+                }}>{tag.icon} {tag.label}</button>
+              );
+            })}
+          </div>
         </FieldSection>
 
         <FieldSection title="Flight">

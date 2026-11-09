@@ -18,4 +18,8 @@ public class Airline {
 
     @Column(name = "airline_name", nullable = false)
     private String airlineName;
+
+    // where the airline is from, ISO 3166-1 alpha-2 (e.g. "AU", "HK"); set on the spotting form
+    @Column(name = "country_code", length = 2)
+    private String countryCode;
 }

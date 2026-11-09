@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
@@ -8,6 +8,9 @@ import aboutContent from '../assets/about.md?raw';
 import api from '../api/axios';
 import RouteMap from '../components/RouteMap';
 import SpottingLocations from '../components/SpottingLocations';
+import { FilterSheet, ActiveFilters } from '../components/GalleryFilters';
+import { EMPTY_FILTERS, facetRows, passes } from '../utils/galleryFilters';
+import { tagInfo } from '../utils/spottingTags';
 
 const TABS = [
     { key: 'gallery', label: 'GALLERY' },
@@ -21,9 +24,7 @@ export default function Gallery() {
     const [activeTab, setActiveTab] = useState('gallery');
     const [search, setSearch] = useState('');
     const [showFilter, setShowFilter] = useState(false);
-    const [filters, setFilters] = useState({ aircraft: '', airport: '' });
-    const filterRef = useRef(null);
-    const [stats, setStats] = useState(null);
+    const [filters, setFilters] = useState(EMPTY_FILTERS);
     const [showBackToTop, setShowBackToTop] = useState(false);
 
     useEffect(() => {
@@ -35,36 +36,11 @@ export default function Gallery() {
     }, []);
 
     useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (showFilter && filterRef.current && !filterRef.current.contains(e.target)) {
-                setShowFilter(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [showFilter]);
-
-    useEffect(() => {
-        fetchData();
+        api.get('/spotting/all')
+            .then(res => setSpottings(res.data))
+            .catch(err => console.error('Failed to fetch', err))
+            .finally(() => setLoading(false));
     }, []);
-
-    const fetchData = async () => {
-        try {
-            const [spottingsRes, statsRes] = await Promise.all([
-                api.get('/spotting/all'),
-                api.get('/spotting/stats'),
-            ]);
-            setSpottings(spottingsRes.data);
-            setStats(statsRes.data);
-        } catch (err) {
-            console.error('Failed to fetch', err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const aircraft = stats?.filters?.aircraft ? [...new Map(stats.filters.aircraft.map(a => [a.icaoCode, a])).values()] : [];
-    const airports = stats?.filters?.airports ? [...stats.filters.airports] : [];
 
     const handleLike = async (id) => {
         try {
@@ -82,38 +58,31 @@ export default function Gallery() {
         return url.startsWith('/api') ? url : `/api/photo/${url}`;
     };
 
-    const filtered = spottings
-        .filter(s => {
-            if (filters.aircraft && s.aircraft?.icaoCode !== filters.aircraft) return false;
-            if (filters.airport && s.spotLocation?.id !== filters.airport) return false;
-            return true;
-        })
-        .filter(s => {
-            if (!search.trim()) return true;
-            const q = search.toLowerCase();
-            return (
-                (s.registration || '').toLowerCase().includes(q) ||
-                (s.airline?.airlineName || '').toLowerCase().includes(q) ||
-                (s.aircraft?.typeName || '').toLowerCase().includes(q) ||
-                (s.notes || '').toLowerCase().includes(q)
-            );
-        })
-        .sort((a, b) => {
-            return (b.spotDate || '').localeCompare(a.spotDate || '');
-        });
+    // the filter counts follow the search, so they always match what the grid can show
+    const rows = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        return facetRows(spottings.filter(s => !q
+            || (s.registration || '').toLowerCase().includes(q)
+            || (s.airline?.airlineName || '').toLowerCase().includes(q)
+            || (s.aircraft?.typeName || '').toLowerCase().includes(q)
+            || (s.notes || '').toLowerCase().includes(q)));
+    }, [spottings, search]);
+
+    const filtered = rows
+        .filter(row => passes(row, filters))
+        .map(row => row.spotting)
+        .sort((a, b) => (b.spotDate || '').localeCompare(a.spotDate || ''));
 
     const openAirport = (iata) => {
-        const airport = airports.find(a => a.iata === iata);
-        if (airport) setFilters({ aircraft: '', airport: airport.id });
+        setFilters({ ...EMPTY_FILTERS, at: [iata] });
         setActiveTab('gallery');
         window.scrollTo({ top: 0 });
     };
 
-    const clearFilters = () => {
-        setFilters({ aircraft: '', airport: '' });
-    };
+    const closeFilter = useCallback(() => setShowFilter(false), []);
 
-    const hasActiveFilters = filters.aircraft || filters.airport;
+    const pickCount = Object.values(filters).reduce((n, picked) => n + picked.length, 0);
+    const hasActiveFilters = pickCount > 0;
 
     if (activeTab === 'about') {
         return (
@@ -255,132 +224,29 @@ export default function Gallery() {
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                 flexWrap: 'wrap', gap: '12px',
             }}>
-                {/* Filter button */}
-                <div style={{ position: 'relative' }} ref={filterRef}>
-                    <button
-                        onClick={() => setShowFilter(!showFilter)}
-                        style={{
-                            display: 'flex', alignItems: 'center', gap: '8px',
-                            padding: '10px 20px',
-                            background: '#fff',
-                            border: hasActiveFilters ? '2px solid #1a1a2e' : '1.5px solid #ddd',
-                            borderRadius: '24px',
-                            fontSize: '14px', fontWeight: 600,
-                            cursor: 'pointer', color: '#333',
-                        }}
-                    >
-                        <span style={{ fontSize: '16px' }}>☰</span>
-                        FILTER
-                        {hasActiveFilters && (
-                            <span style={{
-                                background: '#1a1a2e', color: '#fff', borderRadius: '50%',
-                                width: '18px', height: '18px', fontSize: '11px',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            }}>✓</span>
-                        )}
-                    </button>
-
-                    {/* Filter dropdown */}
-                    {showFilter && (
-                        <div style={{
-                            position: 'absolute', top: '48px', left: 0, zIndex: 10,
-                            background: '#fff', borderRadius: '12px',
-                            border: '1px solid #eee', padding: '20px',
-                            boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
-                            width: '320px',
-                        }}>
-
-                            {/* Aircraft — chip buttons */}
-                            <div style={{ marginBottom: '16px' }}>
-                                <label style={filterLabelStyle}>Aircraft</label>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                                    <button
-                                        onClick={() => setFilters({ ...filters, aircraft: '' })}
-                                        style={{
-                                            padding: '6px 14px',
-                                            borderRadius: '20px',
-                                            fontSize: '13px',
-                                            fontWeight: 600,
-                                            cursor: 'pointer',
-                                            border: filters.aircraft === '' ? '2px solid #1a1a2e' : '1px solid #ddd',
-                                            background: filters.aircraft === '' ? '#1a1a2e' : '#fff',
-                                            color: filters.aircraft === '' ? '#fff' : '#333',
-                                            transition: 'all 0.15s',
-                                        }}
-                                    >All</button>
-                                    {aircraft.map(a => (
-                                        <button
-                                            key={a.id}
-                                            onClick={() => setFilters({ ...filters, aircraft: a.icaoCode })}
-                                            style={{
-                                                padding: '6px 14px',
-                                                borderRadius: '20px',
-                                                fontSize: '13px',
-                                                fontWeight: 600,
-                                                cursor: 'pointer',
-                                                border: filters.aircraft === a.icaoCode ? '2px solid #1a1a2e' : '1px solid #ddd',
-                                                background: filters.aircraft === a.icaoCode ? '#1a1a2e' : '#fff',
-                                                color: filters.aircraft === a.icaoCode ? '#fff' : '#333',
-                                                transition: 'all 0.15s',
-                                            }}
-                                        >{a.icaoCode}</button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Airport */}
-                            <div style={{ marginBottom: '16px' }}>
-                                <label style={filterLabelStyle}>Airport</label>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                                    <button
-                                        onClick={() => setFilters({ ...filters, airport: '' })}
-                                        style={{
-                                            padding: '6px 14px',
-                                            borderRadius: '20px',
-                                            fontSize: '13px',
-                                            fontWeight: 600,
-                                            cursor: 'pointer',
-                                            border: filters.airport === '' ? '2px solid #1a1a2e' : '1px solid #ddd',
-                                            background: filters.airport === '' ? '#1a1a2e' : '#fff',
-                                            color: filters.airport === '' ? '#fff' : '#333',
-                                            transition: 'all 0.15s',
-                                        }}
-                                    >All</button>
-                                    {airports.map(a => (
-                                        <button
-                                            key={a.id}
-                                            onClick={() => setFilters({ ...filters, airport: a.id })}
-                                            style={{
-                                                padding: '6px 14px',
-                                                borderRadius: '20px',
-                                                fontSize: '13px',
-                                                fontWeight: 600,
-                                                cursor: 'pointer',
-                                                border: filters.airport === a.id ? '2px solid #1a1a2e' : '1px solid #ddd',
-                                                background: filters.airport === a.id ? '#1a1a2e' : '#fff',
-                                                color: filters.airport === a.id ? '#fff' : '#333',
-                                                transition: 'all 0.15s',
-                                            }}
-                                        >{a.iata}</button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                                <button onClick={clearFilters} style={{
-                                    flex: 1, padding: '8px', background: '#f5f5f5',
-                                    border: 'none', borderRadius: '6px', fontSize: '13px',
-                                    cursor: 'pointer',
-                                }}>Clear</button>
-                                <button onClick={() => setShowFilter(false)} style={{
-                                    flex: 1, padding: '8px', background: '#1a1a2e', color: '#fff',
-                                    border: 'none', borderRadius: '6px', fontSize: '13px',
-                                    cursor: 'pointer', fontWeight: 600,
-                                }}>Apply</button>
-                            </div>
-                        </div>
+                {/* Filter button: opens the filter panel */}
+                <button
+                    onClick={() => setShowFilter(true)}
+                    style={{
+                        display: 'flex', alignItems: 'center', gap: '8px',
+                        padding: '10px 20px',
+                        background: '#fff',
+                        border: hasActiveFilters ? '2px solid #1a1a2e' : '1.5px solid #ddd',
+                        borderRadius: '24px',
+                        fontSize: '14px', fontWeight: 600,
+                        cursor: 'pointer', color: '#333',
+                    }}
+                >
+                    <span style={{ fontSize: '16px' }}>☰</span>
+                    FILTER
+                    {hasActiveFilters && (
+                        <span style={{
+                            background: '#1a1a2e', color: '#fff', borderRadius: '999px',
+                            minWidth: '20px', height: '20px', padding: '0 6px', fontSize: '11px', boxSizing: 'border-box',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>{pickCount}</span>
                     )}
-                </div>
+                </button>
 
                 {/* Search bar */}
                 <div style={{
@@ -400,6 +266,10 @@ export default function Gallery() {
                     />
                 </div>
             </div>
+
+            <ActiveFilters filters={filters} onChange={setFilters} shown={filtered.length} total={spottings.length} />
+            <FilterSheet open={showFilter} onClose={closeFilter} rows={rows} filters={filters}
+                onChange={setFilters} resultCount={filtered.length} />
 
             {/* Card grid */}
             <div style={{
@@ -523,7 +393,22 @@ function SpottingCard({ spotting, onLike, getPhotoUrl }) {
                 aspectRatio: '16 / 9',
                 background: '#f0f0f0',
                 overflow: 'hidden',
+                position: 'relative',
             }}>
+                {/* categories, e.g. "🎨 Special livery" */}
+                {spotting.tags?.length > 0 && (
+                    <div style={{
+                        position: 'absolute', left: '8px', bottom: '8px', right: '8px',
+                        display: 'flex', flexWrap: 'wrap', gap: '4px', pointerEvents: 'none',
+                    }}>
+                        {spotting.tags.map(key => tagInfo(key)).filter(Boolean).map(tag => (
+                            <span key={tag.key} style={{
+                                fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '999px',
+                                background: 'rgba(255,255,255,0.92)', color: '#1a1a2e',
+                            }}>{tag.icon} {tag.label}</span>
+                        ))}
+                    </div>
+                )}
                 {photoUrl ? (
                     <img
                         src={photoUrl}
@@ -578,16 +463,3 @@ function SpottingCard({ spotting, onLike, getPhotoUrl }) {
         </div>
     );
 }
-
-const filterLabelStyle = {
-    display: 'block', fontSize: '12px', fontWeight: 600,
-    color: '#888', textTransform: 'uppercase',
-    letterSpacing: '0.5px', marginBottom: '6px',
-};
-
-const selectStyle = {
-    width: '100%', padding: '8px 10px',
-    border: '1px solid #ddd', borderRadius: '6px',
-    fontSize: '14px', outline: 'none',
-    background: '#fff',
-};

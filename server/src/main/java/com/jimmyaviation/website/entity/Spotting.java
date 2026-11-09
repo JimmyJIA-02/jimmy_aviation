@@ -1,7 +1,12 @@
 package com.jimmyaviation.website.entity;
 
 import java.time.LocalDate;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
+
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 
 import jakarta.persistence.*;
 import lombok.Data;
@@ -47,4 +52,12 @@ public class Spotting {
     @ManyToOne
     @JoinColumn(name = "spot_location", nullable = false)
     private Airport spotLocation;
+
+    // categories ticked on the form, e.g. "cargo", "special-livery" (see SpottingTags);
+    // loaded for all spottings in one extra query rather than one per spotting
+    @ElementCollection(fetch = FetchType.EAGER)
+    @Fetch(FetchMode.SUBSELECT)
+    @CollectionTable(name = "spotting_tags", joinColumns = @JoinColumn(name = "spotting_id"))
+    @Column(name = "tag", nullable = false, length = 32)
+    private Set<String> tags = new HashSet<>();
 }

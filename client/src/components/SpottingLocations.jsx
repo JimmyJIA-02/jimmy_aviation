@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import * as d3 from 'd3';
 import * as topojson from 'topojson-client';
 import api from '../api/axios';
+import { flagUrl } from '../utils/geo';
 
 const NAVY = '#1a1a2e';
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
@@ -33,12 +34,6 @@ const CameraIcon = ({ size }) => (
 );
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
-// AeroDataBox country code -> flag shown; Taiwan uses the China flag
-const FLAG_OVERRIDES = { TW: 'CN' };
-const flagUrl = (code) => {
-    const flag = FLAG_OVERRIDES[code.toUpperCase()] || code;
-    return `https://cdn.jsdelivr.net/npm/flag-icons@7.2.3/flags/4x3/${flag.toLowerCase()}.svg`;
-};
 
 function formatDate(iso) {
     if (!iso) return '—';
