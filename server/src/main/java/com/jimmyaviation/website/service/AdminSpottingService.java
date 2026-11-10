@@ -1,0 +1,193 @@
+package com.jimmyaviation.website.service;
+
+import com.jimmyaviation.website.entity.*;
+import com.jimmyaviation.website.repository.*;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
+public class AdminSpottingService {
+
+    private final SpottingRepository spottingRepository;
+    private final AircraftRepository aircraftRepository;
+    private final AirlineRepository airlineRepository;
+    private final AirportRepository airportRepository;
+    private final FlightRepository flightRepository;
+
+    private final PhotoService photoService;
+    private final AirportInfoService airportInfoService;
+
+    public Spotting createSpotting(
+            String registration,
+            String photoUrl,
+            String thumbnailUrl,
+            LocalDate spotDate,
+            String notes,
+            String aircraftIcao,
+            String aircraftTypeName,
+            String airlineIcao,
+            String airlineName,
+            String airlineCountry,
+            String flightNumber,
+            String departureAirport,
+            String arrivalAirport,
+            String spotLocationIata,
+            String tags) {
+        Set<String> tagSet = SpottingTags.parse(tags);
+        Airport spotLocation = findAirport(spotLocationIata);
+        Aircraft aircraft = findOrCreateAircraft(aircraftIcao, aircraftTypeName);
+        Airline airline = findOrCreateAirline(airlineIcao, airlineName, airlineCountry);
+        Flight flight = findOrCreateFlight(
+                flightNumber,
+                checkAirportCode(departureAirport, null),
+                checkAirportCode(arrivalAirport, null));
+
+        Spotting spotting = new Spotting();
+        spotting.setRegistration(registration);
+        spotting.setPhotoUrl(photoUrl);
+        spotting.setThumbnailUrl(thumbnailUrl);
+        spotting.setSpotDate(spotDate);
+        spotting.setNotes(notes);
+        spotting.setAircraft(aircraft);
+        spotting.setAirline(airline);
+        spotting.setFlight(flight);
+        spotting.setSpotLocation(spotLocation);
+        spotting.setTags(tagSet);
+
+        return spottingRepository.save(spotting);
+    }
+
+    public List<Spotting> findAll() {
+        return spottingRepository.findAll();
+    }
+
+    public Spotting findById(UUID id) {
+        return spottingRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Spotting not found"));
+    }
+
+    public void deleteById(UUID id) {
+        // delete the photo from S3
+        Spotting spotting = spottingRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Spotting not found"));
+        String url = spotting.getPhotoUrl();
+        photoService.deletePhoto(url);
+        // delete the spotting record
+        spottingRepository.deleteById(id);
+    }
+
+    private Aircraft findOrCreateAircraft(String icaoCode, String typeName) {
+        return aircraftRepository.findByIcaoCodeAndTypeName(icaoCode, typeName)
+                .orElseGet(() -> {
+                    Aircraft a = new Aircraft();
+                    a.setIcaoCode(icaoCode);
+                    a.setTypeName(typeName);
+                    return aircraftRepository.save(a);
+                });
+    }
+
+    // the country belongs to the airline, so picking it on one spotting sets it for all of that airline's;
+    // left empty, an airline keeps the country it has
+    private Airline findOrCreateAirline(String icaoCode, String airlineName, String countryCode) {
+        Airline airline = airlineRepository.findByIcaoCode(icaoCode)
+                .orElseGet(() -> {
+                    Airline a = new Airline();
+                    a.setIcaoCode(icaoCode);
+                    a.setAirlineName(airlineName);
+                    return a;
+                });
+        String country = countryCode == null ? "" : countryCode.trim().toUpperCase();
+        if (!country.isEmpty()) {
+            if (!country.matches("[A-Z]{2}")) {
+                throw new IllegalArgumentException("Unknown airline country \"" + countryCode + "\"");
+            }
+            airline.setCountryCode(country);
+        }
+        return airlineRepository.save(airline);
+    }
+
+    // airports are created in Airport Management; here they're only picked by code
+    private Airport findAirport(String iataCode) {
+        String code = iataCode == null ? "" : iataCode.trim().toUpperCase();
+        if (code.isEmpty()) {
+            throw new IllegalArgumentException("Enter the spot location's IATA code, e.g. MEL");
+        }
+        return airportRepository.findFirstByIataCodeIgnoreCase(code)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Airport " + code + " isn't set up yet. Add it in Airport Management first."));
+    }
+
+    // flights are shared by flight number, so the latest saved route wins
+    private Flight findOrCreateFlight(String flightNumber, String departure, String arrival) {
+        Flight f = flightRepository.findByFlightNumber(flightNumber).orElseGet(Flight::new);
+        f.setFlightNumber(flightNumber);
+        f.setDepartureAirport(departure);
+        f.setArrivalAirport(arrival);
+        return flightRepository.save(f);
+    }
+
+    /**
+     * Departure/arrival are stored as IATA codes and must be known to AeroDataBox.
+     * A value equal to what's already saved is kept as is, so older spottings that hold
+     * a city name can still be edited without converting them.
+     */
+    private String checkAirportCode(String value, String current) {
+        if (value != null && value.equals(current)) {
+            return current;
+        }
+        String code = value == null ? "" : value.trim().toUpperCase();
+        if (airportInfoService.find(code, false).isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Unknown airport code \"" + code + "\". Use the 3-letter IATA code, e.g. SIN.");
+        }
+        return code;
+    }
+
+    public Spotting patchSpotting(UUID id, Map<String, String> updates) {
+        Spotting spotting = spottingRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Spotting not found"));
+
+        if (updates.containsKey("registration")) {
+            spotting.setRegistration(updates.get("registration"));
+        }
+        if (updates.containsKey("photoUrl")) {
+            spotting.setPhotoUrl(updates.get("photoUrl"));
+        }
+        if (updates.containsKey("notes")) {
+            spotting.setNotes(updates.get("notes"));
+        }
+        if (updates.containsKey("airlineIcao")) {
+            spotting.setAirline(findOrCreateAirline(
+                    updates.get("airlineIcao"),
+                    updates.get("airlineName"),
+                    updates.get("airlineCountry")));
+        }
+        if (updates.containsKey("tags")) {
+            spotting.setTags(SpottingTags.parse(updates.get("tags")));
+        }
+        if (updates.containsKey("aircraftIcao")) {
+            spotting.setAircraft(findOrCreateAircraft(
+                    updates.get("aircraftIcao"),
+                    updates.get("aircraftTypeName")));
+        }
+        if (updates.containsKey("spotLocationIata")) {
+            spotting.setSpotLocation(findAirport(updates.get("spotLocationIata")));
+        }
+        if (updates.containsKey("flightNumber")) {
+            Flight current = spotting.getFlight();
+            spotting.setFlight(findOrCreateFlight(
+                    updates.get("flightNumber"),
+                    checkAirportCode(updates.get("departureAirport"), current.getDepartureAirport()),
+                    checkAirportCode(updates.get("arrivalAirport"), current.getArrivalAirport())));
+        }
+
+        return spottingRepository.save(spotting);
+    }
+}
